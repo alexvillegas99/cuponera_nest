@@ -173,7 +173,7 @@ export class HistoricoCuponService {
 
   async validarCuponPorId(body: { id: string; usuarioId: string }) {
     const { id, usuarioId } = body;
-
+    console.log('Validar cupón por ID:', id, 'para usuario:', usuarioId);
     const arrayUsuarios = await this.obtenerIdsUsuariosRelacionados(usuarioId);
 
     const cupon = await this.cuponService.findById(id);
@@ -189,7 +189,7 @@ export class HistoricoCuponService {
       return {
         ...cupon,
         valido: false,
-        message: 'El usuario ya ha escaneado este cupón anteriormente',
+        message: 'Cupon ya registrado',
       };
     }
 
@@ -228,7 +228,7 @@ export class HistoricoCuponService {
       return {
         ...cupon,
         valido: false,
-        message: 'El cupón está inactivo y no puede ser registrado',
+        message: 'Cupón inactivo',
       };
     }
 
@@ -236,7 +236,7 @@ export class HistoricoCuponService {
       return {
         ...cupon,
         valido: false,
-        message: 'El cupón está bloqueado y no puede ser registrado',
+        message: 'Cupón bloqueado',
       };
     }
 
@@ -244,7 +244,7 @@ export class HistoricoCuponService {
       return {
         ...cupon,
         valido: false,
-        message: 'El cupón ha vencido y no puede ser registrado',
+        message: 'Cupón vencido',
       };
     }
 
