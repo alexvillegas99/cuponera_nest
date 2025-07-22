@@ -60,6 +60,7 @@ export class CuponService {
     const cupon = await this._cuponModel
       .findById(id)
       .populate('version usuarioActivador')
+      .lean()
       .exec();
     if (!cupon) throw new NotFoundException('Cupón no encontrado');
 
@@ -85,7 +86,6 @@ export class CuponService {
     secuencial: number,
     usuarioId: string,
   ): Promise<Cupon> {
-   
     const cupon = await this._cuponModel
       .findOne({ version: new Types.ObjectId(versionId), secuencial })
       .exec();
@@ -94,7 +94,7 @@ export class CuponService {
       throw new NotFoundException(
         'Cupón no encontrado para esa versión y secuencial',
       );
-      
+
     if (cupon.estado === EstadoCupon.ACTIVO) {
       throw new BadRequestException('El cupón ya está activo');
     }
@@ -144,4 +144,37 @@ export class CuponService {
 
     return this._cuponModel.insertMany(cupones);
   }
+
+  async findByVersionId(versionId: string) {
+    const cupones = await this._cuponModel
+      .find({ version: new Types.ObjectId(versionId) })
+      .populate('usuarioActivador')
+      .sort({ secuencial: 1 })
+      .exec();
+    if (cupones.length === 0)
+      throw new NotFoundException(
+        'No se encontraron cupones para esta versión',
+      );
+
+    return cupones;
+  }
+
+  async desactivarCuponPorSecuencial(versionId: string, secuencial: number) {
+    try {
+      return await this._cuponModel.findOneAndUpdate(
+        { version: new Types.ObjectId(versionId), secuencial },
+        {
+          estado: EstadoCupon.INACTIVO,
+          usuarioActivador: null,
+          fechaActivacion: null,
+          fechaVencimiento: null,
+        },
+        { new: true },
+      );
+    } catch (error) {
+      console.log('Error al desactivar cupón:', error);
+      throw new NotFoundException('Versión de cuponera no encontrada');
+    }
+  }
+
 }

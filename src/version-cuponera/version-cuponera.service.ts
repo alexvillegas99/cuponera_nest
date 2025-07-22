@@ -6,6 +6,7 @@ import { CreateVersionCuponeraDto } from './dto/create-version-cuponera.dto';
 
 @Injectable()
 export class VersionCuponeraService {
+ 
   constructor(
     @InjectModel(VersionCuponera.name)
     private readonly versionModel: Model<VersionCuponeraDocument>,
@@ -28,5 +29,9 @@ export class VersionCuponeraService {
   async delete(id: string): Promise<void> {
     const result = await this.versionModel.findByIdAndDelete(id).exec();
     if (!result) throw new NotFoundException('Versión de cuponera no encontrada para eliminar');
+  }
+
+   async update(id: string, dto: CreateVersionCuponeraDto) {
+    return  await this.versionModel.findByIdAndUpdate(id, dto).exec();
   }
 }

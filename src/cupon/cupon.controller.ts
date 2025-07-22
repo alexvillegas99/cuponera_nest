@@ -6,6 +6,7 @@ import {
   Body,
   Delete,
   Patch,
+  Query,
 } from '@nestjs/common';
 import { CuponService } from './cupon.service';
 import { CreateCuponDto } from './dto/create-cupon.dto';
@@ -76,6 +77,21 @@ export class CuponController {
     );
   }
 
+  @Patch('desactivar')
+  @ApiOperation({ summary: 'Desactivar un cupón por versión y secuencial' })
+  @ApiResponse({ status: 200, description: 'Cupón desactivado correctamente' })
+  @ApiResponse({ status: 404, description: 'Cupón no encontrado' })
+  @ApiBody({
+    type: ActivarCuponDto,
+    description: 'Datos para activar el cupón por versión y secuencial',
+  })
+  desactivarPorSecuencial(@Body() body: any) {
+    return this.cuponService.desactivarCuponPorSecuencial(
+      body.versionId,
+      body.secuencial,
+    );
+  }
+
   @Post('lote')
   @ApiOperation({
     summary: 'Generar un lote de cupones para una versión específica',
@@ -91,4 +107,16 @@ export class CuponController {
   generarLote(@Body() dto: CrearLoteCuponDto) {
     return this.cuponService.generarLote(dto.versionId, dto.cantidad);
   }
+
+  //buscar por id de version
+
+  @Get('version/:versionId')
+  @ApiOperation({ summary: 'Buscar cupones por ID de versión' })
+  @ApiResponse({ status: 200, description: 'Lista de cupones para la versión' })
+  @ApiResponse({ status: 404, description: 'Versión no encontrada' })
+  @ApiParam({ name: 'versionId', description: 'ID de la versión de cuponera' })
+  async findByVersionId(@Param('versionId') versionId: string) {
+    return await this.cuponService.findByVersionId(versionId);
+  }
+
 }

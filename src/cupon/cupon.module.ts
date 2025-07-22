@@ -5,12 +5,13 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { Cupon, CuponSchema } from './schemas/cupon.schema';
 import { VersionCuponeraModule } from 'src/version-cuponera/version-cuponera.module';
 import { UsuariosModule } from 'src/usuarios/usuarios.module';
+import { HistoricoCuponModule } from 'src/historico-cupon/historico-cupon.module';
 
 @Module({
   imports: [
     MongooseModule.forFeature([{ name: Cupon.name, schema: CuponSchema }]),
     VersionCuponeraModule,
-    UsuariosModule
+    UsuariosModule,
   ],
   controllers: [CuponController],
   providers: [CuponService],

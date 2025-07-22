@@ -46,4 +46,25 @@ export class CreateUsuarioDto {
   @IsOptional()
   @IsBoolean()
   estado: boolean;
+
+
+  @ApiProperty({
+    example: 'claveEncriptada123',
+    description: 'Clave del usuario (debe ser encriptada antes de guardar)',
+  })
+  @IsNotEmpty()
+  @IsString() 
+  clave: string;
+
+
+
+  @ApiProperty({
+    example: '60c72b2f9b1d8c001c8e4f3a',
+    description: 'ID del usuario que creó este registro',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  usuarioCreacion?: string; // ID del usuario que creó este registro
+
 }
