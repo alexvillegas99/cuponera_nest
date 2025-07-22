@@ -13,9 +13,13 @@ import { AuthModule } from './auth/auth.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, load: [configuration] }),
-    DatabaseModule, 
-    LogsModule, UsuariosModule, VersionCuponeraModule, CuponModule, HistoricoCuponModule,
-    AuthModule
+    DatabaseModule,
+    LogsModule,
+    UsuariosModule,
+    VersionCuponeraModule,
+    CuponModule,
+    HistoricoCuponModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],
