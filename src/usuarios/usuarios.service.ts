@@ -39,4 +39,11 @@ export class UsuariosService {
     console.log('Buscando usuarios por responsable:', _id);
     return this.usuarioModel.find({ usuarioCreacion: _id }).exec();
   }
+
+  async update(id: string, dto: any){
+    
+    return await this.usuarioModel
+      .findByIdAndUpdate(id, dto, { new: true })
+      .exec();
+  }
 }

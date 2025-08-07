@@ -126,8 +126,10 @@ export class CuponService {
     if (!version)
       throw new NotFoundException('Versión de cuponera no encontrada');
 
-    const count = await this._cuponModel.countDocuments({ version: versionId });
-
+    const count = await this._cuponModel.countDocuments({
+      version: new Types.ObjectId(versionId),
+    });
+    console.log('Cantidad de cupones existentes:', count);
     const cupones: Cupon[] = [];
 
     for (let i = 0; i < cantidad; i++) {
@@ -177,4 +179,23 @@ export class CuponService {
     }
   }
 
+  buscarPorFechas(fechaInicio: any, fechaFin: any) {
+    console.log('Buscar por fechas:', fechaInicio, 'fechaInicio', fechaFin);
+    // Buscar cupones por rango de fechas
+    fechaInicio = new Date(fechaInicio);
+    fechaFin = new Date(fechaFin);
+    if (fechaInicio > fechaFin) {
+      throw new BadRequestException(
+        'La fecha de inicio no puede ser mayor que la fecha de fin',
+      );
+    }
+
+    return this._cuponModel
+      .find({
+        fechaActivacion: { $gte: fechaInicio, $lte: fechaFin },
+      })
+      .populate('version usuarioActivador')
+      .lean()
+      .exec();
+  }
 }

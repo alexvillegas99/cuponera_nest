@@ -35,6 +35,7 @@ export class HistoricoCuponController {
     @Query('fin') fin: string,
     @Query('secuencial') secuencial?: string,
   ) {
+    console.log('Buscar por fechas:', inicio, fin, secuencial);
     const fechaInicio = new Date(inicio);
     const fechaFin = new Date(fin);
     const sec = secuencial !== undefined ? Number(secuencial) : undefined;

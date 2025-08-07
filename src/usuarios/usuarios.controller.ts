@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Param, Delete } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, Delete, Patch } from '@nestjs/common';
 import { UsuariosService } from './usuarios.service';
 import { CreateUsuarioDto } from './dto/create-usuario.dto';
 import { ApiTags } from '@nestjs/swagger';
@@ -26,4 +26,9 @@ export class UsuariosController {
   delete(@Param('id') id: string) {
     return this.usuariosService.delete(id);
   }
+
+  @Patch(':id')
+  update(@Param('id') id: string, @Body() dto: any) {
+    return this.usuariosService.update(id, dto);
+  } 
 }

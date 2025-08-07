@@ -119,4 +119,19 @@ export class CuponController {
     return await this.cuponService.findByVersionId(versionId);
   }
 
+  @Get('buscar/fecha')
+  @ApiOperation({ summary: 'Buscar cupones por rango de fechas' })
+  @ApiResponse({ status: 200, description: 'Lista de cupones en el rango' })
+  @ApiResponse({ status: 400, description: 'Fechas inválidas' })
+  buscarPorFechas(
+    @Query('inicio') inicio: string,
+    @Query('fin') fin: string,
+  ) {
+    console.log('Buscar por fechas cupones:', inicio, fin);
+    const fechaInicio = new Date(inicio);
+    const fechaFin = new Date(fin);
+
+    return this.cuponService.buscarPorFechas(fechaInicio, fechaFin); 
+  }
+
 }

@@ -1,5 +1,6 @@
 export enum RolUsuario {
   ADMIN = 'admin',
-  USUARIO = 'usuario',
-  LOCAL = 'local',
+  VISUALIZADOR = 'visualizador',
+  LOCAL = 'admin-local',
+  STAFF = 'staff',
 }

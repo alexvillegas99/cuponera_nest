@@ -15,7 +15,7 @@ export class Usuario {
   @Prop({ required: true })
   identificacion: string; // puede ser CI o RUC
 
-  @Prop({ type: String, enum: RolUsuario, default: RolUsuario.USUARIO })
+  @Prop({ type: String, enum: RolUsuario, default: RolUsuario.STAFF })
   rol: RolUsuario;
 
   @Prop({ required: true })
@@ -23,7 +23,7 @@ export class Usuario {
 
   @Prop({ default: true })
   estado: boolean;
-
+ 
   @Prop({
     type: Types.ObjectId,
     ref: Usuario.name,

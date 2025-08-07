@@ -97,7 +97,15 @@ export class HistoricoCuponService {
           $lte: fin,
         },
       })
-      .populate('cupon')
+     
+      .populate({
+        path: 'cupon',
+        select: 'estado fechaActivacion numeroDeEscaneos secuencial version',
+        populate: {
+          path: 'version',
+          model: 'VersionCuponera',
+        },
+      })
       .populate({
         path: 'usuario',
         select: 'nombre email usuarioCreacion',
