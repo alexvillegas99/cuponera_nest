@@ -158,7 +158,7 @@ export class HistoricoCuponService {
     console.log('IDs de usuarios a buscar:', idsUsuarios);
     const cupones = await this.historicoModel
       .find({ usuario: { $in: idsUsuarios } })
-      .populate('cupon')
+    
       .populate({
         path: 'usuario',
         select: 'nombre email usuarioCreacion',
@@ -166,6 +166,14 @@ export class HistoricoCuponService {
           path: 'usuarioCreacion',
           model: 'Usuario',
           select: 'nombre email',
+        },
+      })
+       .populate({
+        path: 'cupon',
+        select: 'estado fechaActivacion numeroDeEscaneos secuencial version',
+        populate: {
+          path: 'version',
+          model: 'VersionCuponera',
         },
       })
       .sort({ fechaEscaneo: -1 })

@@ -4,6 +4,7 @@ import { Model } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import { CreateUsuarioDto } from './dto/create-usuario.dto';
 import { Usuario, UsuarioDocument } from './schema/usuario.schema';
+import { RolUsuario } from './enums/roles.enum';
 
 @Injectable()
 export class UsuariosService {
@@ -16,6 +17,10 @@ export class UsuariosService {
 
   async create(dto: CreateUsuarioDto): Promise<Usuario> {
     //encriptar la clave antes de guardar
+    //validar que no exista el email
+    const existeEmail = await this.findByEmail(dto.email);
+    if (existeEmail) throw new Error('El email ya está en uso');
+
     dto.clave = bcrypt.hashSync(dto.clave, 10);
     return this.usuarioModel.create(dto);
   }
@@ -40,10 +45,18 @@ export class UsuariosService {
     return this.usuarioModel.find({ usuarioCreacion: _id }).exec();
   }
 
-  async update(id: string, dto: any){
-    
+  async update(id: string, dto: any) {
     return await this.usuarioModel
       .findByIdAndUpdate(id, dto, { new: true })
       .exec();
+  }
+
+  async createUserWithLocal(id: string, dto: CreateUsuarioDto) {
+    const existeEmail = await this.findByEmail(dto.email);
+    if (existeEmail) throw new Error('El email ya está en uso');
+    dto.usuarioCreacion = id;
+    dto.rol = RolUsuario.STAFF;
+    dto.clave = bcrypt.hashSync(dto.clave, 10);
+    return this.usuarioModel.create(dto);
   }
 }

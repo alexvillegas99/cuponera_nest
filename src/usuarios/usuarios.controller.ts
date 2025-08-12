@@ -31,4 +31,14 @@ export class UsuariosController {
   update(@Param('id') id: string, @Body() dto: any) {
     return this.usuariosService.update(id, dto);
   } 
+
+  @Get('users-local/:id')
+  findLocalById(@Param('id') id: string) {
+    return this.usuariosService.buscarTodosLosUsuariosPorResponsable(id);
+  }
+
+  @Post('users-local/:id')
+  createUserWithLocal(@Param('id') id: string, @Body() dto: CreateUsuarioDto) {
+    return this.usuariosService.createUserWithLocal(id, dto);
+  }
 }
