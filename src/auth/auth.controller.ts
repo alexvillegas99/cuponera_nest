@@ -31,14 +31,30 @@ export class AuthController {
       },
     },
   })
-  async login(
+  async loginUser(
     @Body() body: { correo: string; clave: string },
     @Res() res: Response,
   ) {
 
-    const result = await this.authService.login(body);
+    const result = await this.authService.loginUsuario(body);
     return res.status(200).json(result);
   }
+
+
+  @ApiOperation({ summary: 'Login de cliente (email/clave)' })
+  @Post('login/cliente')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { correo: { type: 'string' }, clave: { type: 'string' } },
+      example: { correo: 'cliente@mail.com', clave: '123456' },
+    },
+  })
+  async loginCliente(@Body() body: { correo: string; clave: string }, @Res() res: Response) {
+    const result = await this.authService.loginCliente(body);
+    return res.status(200).json(result);
+  }
+
   @Auth()
   @ApiOperation({ summary: 'Renueva el token de autenticación' })
   @Get('refresh-token')

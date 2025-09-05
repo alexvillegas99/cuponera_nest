@@ -19,6 +19,7 @@ import {
   ApiResponse,
   ApiParam,
   ApiBody,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { ActivarCuponDto } from './dto/activar-cupon.dto';
 
@@ -123,15 +124,112 @@ export class CuponController {
   @ApiOperation({ summary: 'Buscar cupones por rango de fechas' })
   @ApiResponse({ status: 200, description: 'Lista de cupones en el rango' })
   @ApiResponse({ status: 400, description: 'Fechas inválidas' })
-  buscarPorFechas(
-    @Query('inicio') inicio: string,
-    @Query('fin') fin: string,
-  ) {
+  buscarPorFechas(@Query('inicio') inicio: string, @Query('fin') fin: string) {
     console.log('Buscar por fechas cupones:', inicio, fin);
     const fechaInicio = new Date(inicio);
     const fechaFin = new Date(fin);
 
-    return this.cuponService.buscarPorFechas(fechaInicio, fechaFin); 
+    return this.cuponService.buscarPorFechas(fechaInicio, fechaFin);
   }
+
+  @Get('clientes/buscar/:clienteId')
+  @ApiOperation({
+    summary: 'Listar cuponeras de un cliente (modo compacto)',
+    description:
+      'Devuelve las cuponeras (cupones asignados) del cliente. Usa el query `soloActivas=true|false` para filtrar por estado.',
+  })
+  @ApiParam({
+    name: 'clienteId',
+    description: 'ID del cliente (MongoID)',
+    required: true,
+  })
+  @ApiQuery({
+    name: 'soloActivas',
+    required: false,
+    description:
+      'Si es "true" (por defecto), devuelve solo cuponeras activas. Con "false", devuelve todas.',
+    example: 'true',
+  })
+  @ApiResponse({ status: 200, description: 'Listado obtenido correctamente' })
+  @ApiResponse({
+    status: 400,
+    description: 'Parámetros inválidos (clienteId inválido)',
+  })
+  async listar(
+    @Param('clienteId') clienteId: string,
+    @Query('soloActivas') soloActivas = 'true',
+  ) {
+    const list = await this.cuponService.obtenerCuponerasPorCliente(
+      clienteId,
+      soloActivas !== 'false',
+    );
+    return list;
+  }
+
+  @Post('clientes/:clienteId/cupones/:cuponId/asignar')
+  @ApiOperation({
+    summary: 'Asignar un cupón específico a un cliente',
+    description:
+      'Asigna el cupón indicado al cliente. Falla si el cupón ya está asignado o no está disponible (por ejemplo, no está INACTIVO).',
+  })
+  @ApiParam({
+    name: 'clienteId',
+    description: 'ID del cliente (MongoID)',
+    required: true,
+  })
+  @ApiParam({
+    name: 'cuponId',
+    description: 'ID del cupón (MongoID)',
+    required: true,
+  })
+  @ApiResponse({ status: 201, description: 'Cupón asignado correctamente' })
+  @ApiResponse({
+    status: 200,
+    description:
+      'Cupón asignado correctamente (también válido si devuelves 200)',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'IDs inválidos o parámetros incorrectos',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Cupón no encontrado (según reglas de asignación)',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Conflicto: cupón ya asignado o no disponible para asignar',
+  })
+  async asignar(
+    @Param('clienteId') clienteId: string,
+    @Param('cuponId') cuponId: string,
+  ) {
+    return this.cuponService.asignarCuponACliente(cuponId, clienteId);
+  }
+
+  @Get('clientes/:clienteId/cuponeras')
+  @ApiOperation({
+    summary: 'Listar cupones asignados a un cliente',
+    description:
+      'Devuelve todas las cuponeras (cupones) que están actualmente asignadas al cliente.',
+  })
+  @ApiParam({
+    name: 'clienteId',
+    description: 'ID del cliente (MongoID)',
+    required: true,
+  })
+  @ApiResponse({ status: 200, description: 'Listado obtenido correctamente' })
+  @ApiResponse({
+    status: 400,
+    description: 'Parámetros inválidos (clienteId inválido)',
+  })
+  async listarPorCliente(@Param('clienteId') clienteId: string) {
+    return this.cuponService.obtenerCuponesPorCliente(clienteId);
+  }
+
+  @Get(':id/detalle')
+async getDetalle(@Param('id') id: string) {
+  return this.cuponService.obtenerDetalleCupon(id);
+}
 
 }

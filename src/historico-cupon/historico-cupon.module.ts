@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { HistoricoCuponService } from './historico-cupon.service';
 import { HistoricoCuponController } from './historico-cupon.controller';
 import { MongooseModule } from '@nestjs/mongoose';
@@ -15,7 +15,7 @@ import { VersionCuponeraModule } from 'src/version-cuponera/version-cuponera.mod
     MongooseModule.forFeature([
       { name: HistoricoCupon.name, schema: HistoricoCuponSchema },
     ]),
-    CuponModule,
+   forwardRef(() => CuponModule),
     UsuariosModule,
     VersionCuponeraModule
   ],
