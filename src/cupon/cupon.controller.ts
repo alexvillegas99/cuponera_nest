@@ -52,6 +52,16 @@ export class CuponController {
   findById(@Param('id') id: string) {
     return this.cuponService.findById(id);
   }
+ @Get('agregar/:id')
+  @ApiOperation({ summary: 'Buscar cupón por ID' })
+  @ApiResponse({ status: 200, description: 'Cupón encontrado' })
+  @ApiResponse({ status: 404, description: 'Cupón no encontrado' })
+  @ApiParam({ name: 'id', description: 'ID del cupón (MongoID)' })
+  findAgregarUsuarioResponsable(@Param('id') id: string) {
+    return this.cuponService.findAgregarUsuarioCliente(id);
+  }
+
+
 
   @Delete(':id')
   @ApiOperation({ summary: 'Eliminar cupón por ID' })

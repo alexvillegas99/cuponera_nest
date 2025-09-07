@@ -29,7 +29,7 @@ export class CreateClienteDto {
   fechaNacimiento?: Date;
 
   // opcional si registras con clave
-  @IsOptional() @IsString() @MinLength(6)
+  @IsOptional() @IsString() @MinLength(6)jkjk
   password?: string;
   
 }

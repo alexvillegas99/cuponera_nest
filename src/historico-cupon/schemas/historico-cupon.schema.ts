@@ -14,8 +14,11 @@ export class HistoricoCupon {
   @Prop({ type: Types.ObjectId, ref: Usuario.name, required: true })
   usuario: Types.ObjectId;
 
-  @Prop({ default: new Date() })
+ @Prop({ default: Date.now })
   fechaEscaneo: Date;
 }
 
 export const HistoricoCuponSchema = SchemaFactory.createForClass(HistoricoCupon);
+HistoricoCuponSchema.index({ usuario: 1, cupon: 1, fechaEscaneo: -1 });
+HistoricoCuponSchema.index({ cupon: 1, fechaEscaneo: -1 });   // (opcional) histórico por cupón
+

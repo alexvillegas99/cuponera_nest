@@ -5,9 +5,7 @@ import { Logger, ValidationPipe } from '@nestjs/common';
 import { urlencoded, json } from 'express';
 import { NODE_ENV, PORT } from './config/config.env';
 import { ConfigService } from '@nestjs/config';
-import * as fs from 'fs';
-import * as https from 'https';
-import { join } from 'path';
+
 import * as express from 'express';
 import { LogsService } from './logs/logs.service';
 import {

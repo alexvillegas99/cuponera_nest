@@ -26,7 +26,7 @@
     tipoIdentificacion: TipoIdentificacion;
 
     // 👇 ÚNICO
-    @Prop({ type: String, required: true, unique: true, index: true, trim: true })
+    @Prop({ type: String, required: true, index: true, trim: true })
     identificacion: string; // cédula / RUC / pasaporte
 
     // 👇 ÚNICO + normalizado a minúscula
@@ -60,8 +60,6 @@
   export const ClienteSchema = SchemaFactory.createForClass(Cliente);
 
   // Reafirma índices únicos (útil si venías sin "unique" antes)
-  ClienteSchema.index({ identificacion: 1 }, { unique: true });
-  ClienteSchema.index({ email: 1 }, { unique: true });
   ClienteSchema.index({ estado: 1, apellidos: 1 });
 
   // (Opcional) si prefieres unicidad por tipo+identificación en vez de global:

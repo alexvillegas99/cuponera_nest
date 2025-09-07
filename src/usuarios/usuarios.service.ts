@@ -300,39 +300,41 @@ export class UsuariosService {
         }
       : undefined;
 
-   // Comentarios (opcional): trae los últimos N
-let comentarios: ComentarioDto[] = [];
+    // Comentarios (opcional): trae los últimos N
+    let comentarios: ComentarioDto[] = [];
 
-if (this.comentarioModel) {
-  const rows = await this.comentarioModel
-    .find(
-      { usuario: new Types.ObjectId(usuarioId) },
-      {
-        texto: 1,
-        calificacion: 1,
-        createdAt: 1,
-        autor: 1,
-      },
-    )
-    .populate({
-      path: 'autor',              // ref: 'Cliente'
-      select: 'nombres apellidos email',
-      options: { lean: true },
-    })
-    .sort({ createdAt: -1 })
-    .limit(30)
-    .lean();
+    if (this.comentarioModel) {
+      const rows = await this.comentarioModel
+        .find(
+          { usuario: new Types.ObjectId(usuarioId) },
+          {
+            texto: 1,
+            calificacion: 1,
+            createdAt: 1,
+            autor: 1,
+          },
+        )
+        .populate({
+          path: 'autor', // ref: 'Cliente'
+          select: 'nombres apellidos email',
+          options: { lean: true },
+        })
+        .sort({ createdAt: -1 })
+        .limit(30)
+        .lean();
 
-  // 👇 OJO: aquí ASIGNAMOS a la variable externa
-    console.log(rows)
-  comentarios = rows.map((r: any) => ({
-   autorNombre: `${r?.autor?.nombres ?? ''} ${r?.autor?.apellidos ?? ''}`.trim() || 'Anónimo',
-    texto: r?.texto ?? '',
-    rating: typeof r?.calificacion === 'number' ? r.calificacion : undefined,
-    fecha: r?.createdAt ? new Date(r.createdAt).toISOString() : undefined,
-  }));
-}
-
+      // 👇 OJO: aquí ASIGNAMOS a la variable externa
+      console.log(rows);
+      comentarios = rows.map((r: any) => ({
+        autorNombre:
+          `${r?.autor?.nombres ?? ''} ${r?.autor?.apellidos ?? ''}`.trim() ||
+          'Anónimo',
+        texto: r?.texto ?? '',
+        rating:
+          typeof r?.calificacion === 'number' ? r.calificacion : undefined,
+        fecha: r?.createdAt ? new Date(r.createdAt).toISOString() : undefined,
+      }));
+    }
 
     return {
       promoPrincipal: promo,
@@ -347,5 +349,15 @@ if (this.comentarioModel) {
       telefono: u.telefono ?? undefined,
       comentarios,
     };
+  }
+
+  async resetPassword(email: string, password: string) {
+    const u = await this.usuarioModel.findOne({ email: email.toLowerCase() });
+    if (!u) throw new NotFoundException('Cuenta no encontrada');
+
+    const hash = await bcrypt.hash(password, 10);
+    u.clave = hash;
+    await u.save();
+    return { ok: true };
   }
 }

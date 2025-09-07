@@ -41,7 +41,7 @@ export class Cupon {
   @Prop({ type: Types.ObjectId, ref: Usuario.name, required: false })
   usuarioActivador?: Types.ObjectId;
 
-  @Prop({})
+
 
   // 👇 NUEVO: cliente dueño de esta cuponera (opcional)
   @Prop({
@@ -60,4 +60,4 @@ export const CuponSchema = SchemaFactory.createForClass(Cupon);
 
 // índices útiles
 CuponSchema.index({ cliente: 1, estado: 1 });
-CuponSchema.index({ version: 1, cliente: 1 });
+CuponSchema.index({ version: 1, cliente: 1, usuarioActivador: 1 });

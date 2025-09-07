@@ -131,5 +131,61 @@ actualizarPorId(
   @Body() body: { texto?: string; calificacion?: number },
 ) {
   return this.comentariosService.actualizarComentarioPorId(comentarioId, body);
+
 }
+
+// ─────────────────────────────────────────────────────────────
+// NUEVO: Elegibilidad para comentar (por query)
+@Get('eligibilidad')
+@ApiOperation({ summary: 'Verifica si el cliente puede comentar en el usuario/local' })
+@ApiQuery({ name: 'usuarioId', required: true, description: 'ID del usuario/local' })
+@ApiQuery({ name: 'clienteId', required: true, description: 'ID del cliente (autor)' })
+elegibilidad(@Query('usuarioId') usuarioId: string, @Query('clienteId') clienteId: string) {
+  return this.comentariosService.elegibilidad(usuarioId, clienteId);
+}
+
+// ─────────────────────────────────────────────────────────────
+// NUEVO: Obtener MI comentario (clienteId por query)
+@Get('mio/:usuarioId')
+@ApiOperation({ summary: 'Obtiene tu propio comentario en un usuario/local' })
+@ApiParam({ name: 'usuarioId', description: 'ID del usuario/local' })
+@ApiQuery({ name: 'clienteId', required: true, description: 'ID del cliente (autor)' })
+obtenerMiComentario(@Param('usuarioId') usuarioId: string, @Query('clienteId') clienteId: string) {
+  return this.comentariosService.obtenerMiComentario(usuarioId, clienteId);
+}
+
+// ─────────────────────────────────────────────────────────────
+// NUEVO: Crear/editar MI comentario (clienteId en el body)
+@Put('mio/:usuarioId')
+@ApiOperation({ summary: 'Crea o actualiza tu comentario (1 por local)' })
+@ApiParam({ name: 'usuarioId', description: 'ID del usuario/local' })
+@ApiBody({
+  schema: {
+    example: {
+      clienteId: '68b68090af6e4afed306d1c2',
+      texto: 'Muy buen ambiente',
+      calificacion: 5
+    },
+  },
+})
+upsertMiComentario(
+  @Param('usuarioId') usuarioId: string,
+  @Body() body: { clienteId: string; texto?: string; calificacion?: number },
+) {
+  const { clienteId, ...rest } = body;
+  return this.comentariosService.upsertMiComentario(usuarioId, clienteId, rest);
+}
+
+// ─────────────────────────────────────────────────────────────
+// NUEVO: Eliminar MI comentario (clienteId por query)
+@Delete('mio/:usuarioId')
+@ApiOperation({ summary: 'Elimina tu comentario en un usuario/local' })
+@ApiParam({ name: 'usuarioId', description: 'ID del usuario/local' })
+@ApiQuery({ name: 'clienteId', required: true, description: 'ID del cliente (autor)' })
+eliminarMiComentario(@Param('usuarioId') usuarioId: string, @Query('clienteId') clienteId: string) {
+  return this.comentariosService.eliminarMiComentario(usuarioId, clienteId);
+}
+
+
+
 }

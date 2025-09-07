@@ -1,5 +1,5 @@
 // src/clientes/clientes.controller.ts
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, Patch, Post, Put, Query } from '@nestjs/common';
 import {
   ApiOperation,
   ApiQuery,
@@ -43,28 +43,44 @@ export class ClientesController {
   })
   @ApiResponse({
     status: 400,
-    description: 'Error de validación (cédula, RUC, email o identificación duplicados)',
+    description:
+      'Error de validación (cédula, RUC, email o identificación duplicados)',
   })
   @ApiBody({
-  description: 'Datos necesarios para registrar un nuevo cliente',
-  schema: {
-    example: {
-      nombres: 'Juan',
-      apellidos: 'Pérez',
-      tipoIdentificacion: 'CEDULA',
-      identificacion: '1712345678',
-      email: 'juan.perez@ejemplo.com',
-      telefono: '0999999999',
-      direccion: 'Av. Siempre Viva 123',
-      fechaNacimiento: '1990-05-10T00:00:00.000Z',
-      password: 'MiClaveSegura123',
+    description: 'Datos necesarios para registrar un nuevo cliente',
+    schema: {
+      example: {
+        nombres: 'Juan',
+        apellidos: 'Pérez',
+        tipoIdentificacion: 'CEDULA',
+        identificacion: '1712345678',
+        email: 'juan.perez@ejemplo.com',
+        telefono: '0999999999',
+        direccion: 'Av. Siempre Viva 123',
+        fechaNacimiento: '1990-05-10T00:00:00.000Z',
+        password: 'MiClaveSegura123',
+      },
     },
-  },
-})
+  })
   create(@Body() dto: CreateClienteDto) {
     return this.service.create(dto);
   }
-
+    @Get('check-email')
+  @ApiOperation({ summary: 'Verifica si un email está disponible' })
+  @ApiQuery({ name: 'email', required: true, example: 'correo@dominio.com' })
+  @ApiResponse({
+    status: 200,
+    description: 'Devuelve available=true si el email NO existe',
+    schema: { example: { available: true } },
+  })
+  async checkEmail(@Query('email') email?: string) {
+    if (!email || !email.trim()) {
+      throw new BadRequestException('email es requerido');
+    }
+    // normaliza por si el schema no tiene lowercase automático
+    const exists = await this.service.emailExists(email.trim().toLowerCase());
+    return { available: !exists };
+  }
   @Get()
   @ApiOperation({
     summary: 'Listar clientes',
@@ -148,4 +164,25 @@ export class ClientesController {
   findById(@Param('id') id: string) {
     return this.service.findById(id);
   }
+
+  @Put('me/:id')
+  async updateMe(@Body() dto: any, @Param('id') id: string) {
+    return this.service.updateMe(id, dto);
+  }
+
+  @Get('perfil/:id')
+  async PerfilCliente(@Body() dto: any, @Param('id') id: string) {
+    return await this.service.getPerfil(id);
+  }
+
+    @Patch('reset')
+    async reset(@Body() dto: any) {
+      // Si tu reset NO requiere code, se ignora dto.code
+      return this.service.resetPassword(
+        dto.email,
+        dto.password
+      );
+    }
+
+
 }

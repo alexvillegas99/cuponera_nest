@@ -138,7 +138,7 @@ export class CiudadController {
   remove(@Param('id') id: string) {
     return this.ciudadModel.findByIdAndDelete(id).lean();
   }
-
+ 
 
   @Get('ciudades/registro')
   findCiudadesParaRegistro() {

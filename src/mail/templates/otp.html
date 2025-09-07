@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="es" style="margin:0; padding:0;">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <meta http-equiv="x-ua-compatible" content="ie=edge" />
+    <title>Código de verificación</title>
+    <style>
+      .preheader { display:none !important; visibility:hidden; opacity:0; color:transparent; height:0; width:0; overflow:hidden; mso-hide:all; }
+      @media (max-width: 600px) {
+        .container { width:100% !important; }
+        .px-24 { padding-left:16px !important; padding-right:16px !important; }
+        .py-32 { padding-top:24px !important; padding-bottom:24px !important; }
+        .h1 { font-size:22px !important; line-height:28px !important; }
+      }
+      @media (prefers-color-scheme: dark) {
+        body, table, .bg-body { background:#0b1220 !important; }
+        .card { background:#0f172a !important; }
+        .muted { color:#94a3b8 !important; }
+        .title, .text { color:#e2e8f0 !important; }
+        .otp { background:#fbc02d !important; color:#000 !important; }
+        .divider { border-color:#23324a !important; }
+      }
+    </style>
+  </head>
+  <body style="margin:0; padding:0; background:#f2f4f7;" class="bg-body">
+    <div class="preheader">Tu código de verificación es {{codigo}} y expira en 10 minutos.</div>
+
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f2f4f7;">
+      <tr>
+        <td align="center" style="padding:24px 12px;">
+          <table role="presentation" width="600" class="container" cellspacing="0" cellpadding="0" border="0" style="width:600px; max-width:600px;">
+
+            <!-- Header -->
+            <tr>
+              <td align="left" style="padding:14px 20px; background:#010F23; border-radius:16px 16px 0 0;">
+                <table role="presentation" width="100%">
+                  <tr>
+                    <td align="left">
+                      <img src="https://enjoystorage.s3.us-east-2.amazonaws.com/enjoy/logos/logoeny.png" alt="Enjoy" style="display:block; height:28px; max-height:28px;" />
+                    </td>
+                    <td align="right">
+                      <span style="font:600 12px/1 Arial, sans-serif; color:#9fb3d9; letter-spacing:.6px; text-transform:uppercase;">Verificación</span>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- Card -->
+            <tr>
+              <td style="background:#ffffff; border-radius:0 0 16px 16px; box-shadow:0 6px 20px rgba(1,15,35,0.06);" class="card">
+                <table width="100%" cellspacing="0" cellpadding="0" border="0">
+                  <tr>
+                    <td class="px-24 py-32" style="padding:28px 24px;">
+                      
+                      <!-- Icon -->
+                      <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+                        <tr>
+                          <td width="56" height="56" align="center" valign="middle" style="background:#fbc02d; border-radius:999px; font:700 24px/56px Arial, sans-serif; color:#000;">
+                            #
+                          </td>
+                        </tr>
+                      </table>
+
+                      <h1 class="h1 title" style="margin:16px 0 8px; font:800 24px/32px Arial, sans-serif; color:#0F172A;">
+                        Tu código de verificación
+                      </h1>
+                     <!--  <p class="text" style="margin:0 0 8px; font:14px/22px Arial, sans-serif; color:#334155;">
+                        Hola <strong>{{nombre}}</strong>,
+                      </p> -->
+                      <p class="text" style="margin:0 0 18px; font:14px/22px Arial, sans-serif; color:#334155;">
+                        Usa el siguiente código para continuar con tu proceso. 
+                      </p>
+
+                      <!-- OTP -->
+                      <div class="otp" style="font:700 28px/1 Arial, sans-serif; letter-spacing:4px; text-align:center; background:#173A5E; color:#fff; border-radius:12px; padding:18px; margin:18px 0;">
+                        {{codigo}}
+                      </div>
+
+                      <p class="text" style="margin:0; font:14px/22px Arial, sans-serif; color:#334155;">
+                        Este código expirará en <strong>5 minutos</strong>.
+                      </p>
+
+                      <p class="muted" style="margin:18px 0 0; font:12px/18px Arial, sans-serif; color:#64748B;">
+                        Si no solicitaste este código, ignora este mensaje.
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+
+                <!-- Divider -->
+                <table width="100%" cellspacing="0" cellpadding="0" border="0">
+                  <tr>
+                    <td style="padding:0 24px 16px;">
+                      <hr class="divider" style="border:none; border-top:1px solid #e2e8f0; margin:0;" />
+                    </td>
+                  </tr>
+                </table>
+
+                <!-- Footer -->
+                <table width="100%" cellspacing="0" cellpadding="0" border="0">
+                  <tr>
+                    <td class="px-24" style="padding:0 24px 24px;">
+                      <p class="muted" style="margin:0 0 6px; font:12px/18px Arial, sans-serif; color:#64748B;">
+                        ¿Necesitas ayuda? Visita nuestro <a href="{{enlace_soporte}}" target="_blank" style="color:#173A5E; text-decoration:none; font-weight:600;">Centro de soporte</a>.
+                      </p>
+                      <p class="muted" style="margin:0; font:12px/18px Arial, sans-serif; color:#64748B;">
+                        Este es un correo automático, por favor no respondas a este mensaje.
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- Disclaimer -->
+            <tr>
+              <td align="center" style="padding:14px 10px;">
+                <p class="muted" style="margin:0; font:11px/16px Arial, sans-serif; color:#64748B;">
+                  © {{fecha}} Enjoy. Todos los derechos reservados.
+                </p>
+              </td>
+            </tr>
+
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

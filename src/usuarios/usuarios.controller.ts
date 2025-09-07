@@ -17,7 +17,10 @@ import {
   ApiBody,
   ApiParam,
 } from '@nestjs/swagger';
-import { ComercioMiniResponse, PromoPrincipalDto } from './dto/comercio-detalle.dto';
+import {
+  ComercioMiniResponse,
+  PromoPrincipalDto,
+} from './dto/comercio-detalle.dto';
 
 @ApiTags('Usuarios')
 @Controller('usuarios')
@@ -27,7 +30,8 @@ export class UsuariosController {
   @Post()
   @ApiOperation({ summary: 'Crear usuario' })
   @ApiBody({
-    description: 'Datos para crear un usuario (incluye relaciones y detalles de promoción opcionales)',
+    description:
+      'Datos para crear un usuario (incluye relaciones y detalles de promoción opcionales)',
     schema: {
       example: {
         nombre: 'Wellness & Spa',
@@ -56,11 +60,11 @@ export class UsuariosController {
           startDate: '2025-09-02T15:00:00.000Z',
           endDate: '2025-09-02T19:00:00.000Z',
           isFlash: true,
-          address: 'Parque Sucre, local 5'
+          address: 'Parque Sucre, local 5',
         },
         detallePromocionesExtra: [
-          { title: '2x1 Circuito Termal', placeName: 'Wellness & Spa' }
-        ]
+          { title: '2x1 Circuito Termal', placeName: 'Wellness & Spa' },
+        ],
       },
     },
   })
@@ -76,12 +80,17 @@ export class UsuariosController {
         rol: 'STAFF',
         estado: true,
         usuarioCreacion: '66d63c8f8baf234aa11e9000',
-        ciudades: ['Ambato'],           // ← nombres ya transformados
-        categorias: ['Spa'],            // ← nombres ya transformados
+        ciudades: ['Ambato'], // ← nombres ya transformados
+        categorias: ['Spa'], // ← nombres ya transformados
         promocion: 'Spa Day Flash -40%',
         horarioAtencion: 'Lun-Dom 10:00–19:00',
-        detallePromocion: { title: 'Spa Day Flash -40%', placeName: 'Wellness & Spa' },
-        detallePromocionesExtra: [{ title: '2x1 Circuito Termal', placeName: 'Wellness & Spa' }],
+        detallePromocion: {
+          title: 'Spa Day Flash -40%',
+          placeName: 'Wellness & Spa',
+        },
+        detallePromocionesExtra: [
+          { title: '2x1 Circuito Termal', placeName: 'Wellness & Spa' },
+        ],
         createdAt: '2025-09-02T12:00:00.000Z',
         updatedAt: '2025-09-02T12:00:00.000Z',
       },
@@ -92,38 +101,47 @@ export class UsuariosController {
   }
 
 
-    @Get('por-ciudades')
-@ApiOperation({
-  summary: 'Listar usuarios que tienen promoción en una o varias ciudades',
-  description:
-    'Devuelve solo "detallePromocion", más arrays de nombres de "ciudades" y "categorias". ' +
-    'Filtra usuarios que tengan alguna de las ciudades indicadas y que detallePromocion no sea nulo.',
-})
-@ApiResponse({
-  status: 200,
-  description: 'Usuarios con promociones activas en esas ciudades (campos reducidos)',
-  schema: {
-    example: [
-      {
-        _id: '68b68090af6e4afed306d1b0',
-        detallePromocion: {
-          title: 'Spa Day Flash -40%',
-          placeName: 'Wellness & Spa',
-          scheduleLabel: 'Lun-Dom 10:00–19:00',
-          // ...
+
+  @Get('por-ciudades')
+  @ApiOperation({
+    summary: 'Listar usuarios que tienen promoción en una o varias ciudades',
+    description:
+      'Devuelve solo "detallePromocion", más arrays de nombres de "ciudades" y "categorias". ' +
+      'Filtra usuarios que tengan alguna de las ciudades indicadas y que detallePromocion no sea nulo.',
+  })
+  @ApiResponse({
+    status: 200,
+    description:
+      'Usuarios con promociones activas en esas ciudades (campos reducidos)',
+    schema: {
+      example: [
+        {
+          _id: '68b68090af6e4afed306d1b0',
+          detallePromocion: {
+            title: 'Spa Day Flash -40%',
+            placeName: 'Wellness & Spa',
+            scheduleLabel: 'Lun-Dom 10:00–19:00',
+            // ...
+          },
+          ciudades: ['Ambato', 'Riobamba'],
+          categorias: ['Spa', 'Restaurante'],
         },
-        ciudades: ['Ambato', 'Riobamba'],
-        categorias: ['Spa', 'Restaurante']
-      }
-    ],
-  },
-})
-findByCiudadesConPromo(@Query('ciudades') ciudades: string) {
-  // el query vendrá como "id1,id2,id3"
-  const ciudadIds = ciudades.split(',').map((id) => id.trim()).filter(Boolean);
-  console.log(ciudadIds)
-  return this.usuariosService.findByCiudadesConPromo(ciudadIds);
-}
+      ],
+    },
+  })
+  findByCiudadesConPromo(@Query('ciudades') ciudades: string) {
+    if (!ciudades) {
+      return [];
+    }
+
+    const ids = ciudades
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    console.log(ids);
+    return this.usuariosService.findByCiudadesConPromo(ids);
+  }
 
   @Get()
   @ApiOperation({ summary: 'Listar usuarios' })
@@ -170,6 +188,17 @@ findByCiudadesConPromo(@Query('ciudades') ciudades: string) {
     return this.usuariosService.delete(id);
   }
 
+
+
+    @Patch('reset')
+  async reset(@Body() dto: any) {
+    // Si tu reset NO requiere code, se ignora dto.code
+    return this.usuariosService.resetPassword(
+      dto.email,
+      dto.password
+    );
+  }
+
   @Patch(':id')
   @ApiOperation({ summary: 'Actualizar usuario' })
   @ApiParam({ name: 'id', required: true })
@@ -184,7 +213,10 @@ findByCiudadesConPromo(@Query('ciudades') ciudades: string) {
         categorias: ['66d63c8f8baf234aa11e9901', '66d63c8f8baf234aa11e9902'],
         promocion: 'Circuito termal -25%',
         horarioAtencion: 'Lun-Sab 09:00–18:00',
-        detallePromocion: { title: 'Circuito termal -25%', placeName: 'Wellness & Spa' },
+        detallePromocion: {
+          title: 'Circuito termal -25%',
+          placeName: 'Wellness & Spa',
+        },
       },
     },
   })
@@ -200,7 +232,9 @@ findByCiudadesConPromo(@Query('ciudades') ciudades: string) {
   }
 
   @Post('users-local/:id')
-  @ApiOperation({ summary: 'Crear usuario asignando responsable (usuarioCreacion)' })
+  @ApiOperation({
+    summary: 'Crear usuario asignando responsable (usuarioCreacion)',
+  })
   @ApiParam({ name: 'id', description: 'ID del responsable' })
   @ApiBody({
     description: 'Datos de usuario (se setea usuarioCreacion y rol=STAFF)',
@@ -219,10 +253,12 @@ findByCiudadesConPromo(@Query('ciudades') ciudades: string) {
     return this.usuariosService.createUserWithLocal(id, dto);
   }
 
-
-@Get(':usuarioId/detalle-mini')
-  async obtenerDetalleMini(@Param('usuarioId') usuarioId: string): Promise<ComercioMiniResponse> {
+  @Get(':usuarioId/detalle-mini')
+  async obtenerDetalleMini(
+    @Param('usuarioId') usuarioId: string,
+  ): Promise<ComercioMiniResponse> {
     return this.usuariosService.obtenerInformacionComercioMini(usuarioId);
   }
 
+  
 }

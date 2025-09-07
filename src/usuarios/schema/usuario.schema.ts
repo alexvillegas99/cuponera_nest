@@ -122,7 +122,7 @@ export class Usuario {
   @Prop({ required: true }) nombre: string;
 
   /** Email (único) / Email (unique) */
-  @Prop({ required: true, unique: true, trim: true, lowercase: true })
+  @Prop({ required: true, unique: true, trim: true, lowercase: true,index:true })
   email: string;
 
   /** Identificación (CI/RUC) / National ID (CI/RUC) */
@@ -182,7 +182,7 @@ export class Usuario {
 export const UsuarioSchema = SchemaFactory.createForClass(Usuario);
 
 // Índices útiles / Useful indexes
-UsuarioSchema.index({ email: 1 }, { unique: true });
+
 UsuarioSchema.index({ estado: 1 });
 UsuarioSchema.index({ promedioCalificacion: -1 });
 
