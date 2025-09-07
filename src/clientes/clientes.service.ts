@@ -9,7 +9,6 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { CreateClienteDto } from './dto/create-cliente.dto';
 import { validarCedulaEc, validarRucEc } from './utils/identificacion-ec';
 import * as bcrypt from 'bcrypt';
 import {
@@ -49,7 +48,7 @@ export class ClientesService {
     private readonly favoritoModel: Model<FavoriteDocument>,
   ) {}
   private readonly logger = new Logger(ClientesService.name);
-  async create(dto: CreateClienteDto) {
+  async create(dto: any) {
     const existsEmail = await this.clienteModel.exists({
       email: dto.email.toLowerCase(),
     });

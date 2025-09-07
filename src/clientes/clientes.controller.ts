@@ -9,7 +9,6 @@ import {
   ApiBody,
 } from '@nestjs/swagger';
 import { ClientesService } from './clientes.service';
-import { CreateClienteDto } from './dto/create-cliente.dto';
 
 @ApiTags('Clientes')
 @Controller('clientes')
@@ -62,7 +61,7 @@ export class ClientesController {
       },
     },
   })
-  create(@Body() dto: CreateClienteDto) {
+  create(@Body() dto: any) {
     return this.service.create(dto);
   }
     @Get('check-email')

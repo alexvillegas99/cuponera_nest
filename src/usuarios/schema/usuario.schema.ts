@@ -152,20 +152,14 @@ export class Usuario {
   @Prop({ type: [{ type: Types.ObjectId, ref: 'Categoria' }], default: [] })
   categorias: Types.ObjectId[];
 
-  // ── Campos de promo a nivel usuario (opcionales) ──
-  /** Nombre de la promoción principal (texto) / Promotion main name (text) */
-  @Prop({ trim: true }) promocion?: string;
-
-  /** Horario de atención (texto general) / Opening hours (display text) */
-  @Prop({ trim: true }) horarioAtencion?: string;
 
   /** Detalle de promoción / Promotion detail */
   @Prop({ type: PromotionDetailSchema, required: false })
   detallePromocion?: PromotionDetail;
 
   /** Lista de promos extra / Additional promotion details */
-  @Prop({ type: [PromotionDetailSchema], default: [] })
-  detallePromocionesExtra?: PromotionDetail[];
+  @Prop({ type: PromotionDetailSchema, default: null  })
+  detallePromocionesExtra?: PromotionDetail;
 
     /** Promedio de calificación (1-5) */
   @Prop({ default: 0 })
