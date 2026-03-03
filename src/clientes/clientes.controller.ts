@@ -1,5 +1,15 @@
 // src/clientes/clientes.controller.ts
-import { BadRequestException, Body, Controller, Get, Param, Patch, Post, Put, Query } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Put,
+  Query,
+} from '@nestjs/common';
 import {
   ApiOperation,
   ApiQuery,
@@ -14,6 +24,22 @@ import { ClientesService } from './clientes.service';
 @Controller('clientes')
 export class ClientesController {
   constructor(private readonly service: ClientesService) {}
+
+
+    @Get('admin')
+  async findAdmin(
+    @Query('q') q?: string,
+    @Query('estado') estado?: string,
+    @Query('page') page = '1',
+    @Query('limit') limit = '10',
+  ) {
+    return this.service.findAdmin({
+      q,
+      estado,
+      page: Number(page),
+      limit: Number(limit),
+    });
+  }
 
   @Post()
   @ApiOperation({
@@ -64,7 +90,7 @@ export class ClientesController {
   create(@Body() dto: any) {
     return this.service.create(dto);
   }
-    @Get('check-email')
+  @Get('check-email')
   @ApiOperation({ summary: 'Verifica si un email está disponible' })
   @ApiQuery({ name: 'email', required: true, example: 'correo@dominio.com' })
   @ApiResponse({
@@ -174,14 +200,9 @@ export class ClientesController {
     return await this.service.getPerfil(id);
   }
 
-    @Patch('reset')
-    async reset(@Body() dto: any) {
-      // Si tu reset NO requiere code, se ignora dto.code
-      return this.service.resetPassword(
-        dto.email,
-        dto.password
-      );
-    }
-
-
+  @Patch('reset')
+  async reset(@Body() dto: any) {
+    // Si tu reset NO requiere code, se ignora dto.code
+    return this.service.resetPassword(dto.email, dto.password);
+  }
 }

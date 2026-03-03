@@ -7,147 +7,84 @@ import {
   Patch,
   Post,
   Query,
-  NotFoundException,
 } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
-import { Ciudad, CiudadDocument } from './schema/ciudad.schema';
+import { ApiTags, ApiOperation, ApiBody } from '@nestjs/swagger';
+import { CiudadService } from './ciudad.service';
 
 @ApiTags('Ciudades')
 @Controller('ciudades')
 export class CiudadController {
-  constructor(
-    @InjectModel(Ciudad.name) private readonly ciudadModel: Model<CiudadDocument>,
-  ) {}
+  constructor(private readonly ciudadService: CiudadService) {}
 
   @Post()
   @ApiOperation({ summary: 'Crear una ciudad' })
   @ApiBody({
-    description: 'Datos para crear una ciudad',
     schema: {
       example: {
         nombre: 'Ambato',
         estado: true,
         geo: { lat: -1.24908, lng: -78.61675 },
-        visibleParaRegistro:true
-      },
-    },
-  })
-  @ApiResponse({
-    status: 201,
-    description: 'Ciudad creada correctamente',
-    schema: {
-      example: {
-        _id: '66d63c8f8baf234aa11e9876',
-        nombre: 'Ambato',
-        estado: true,
-        geo: { lat: -1.24908, lng: -78.61675 },
-        createdAt: '2025-09-02T12:00:00.000Z',
-        updatedAt: '2025-09-02T12:00:00.000Z',
+        visibleParaRegistro: true,
       },
     },
   })
   create(@Body() body: any) {
-    return this.ciudadModel.create(body);
+    return this.ciudadService.create(body);
   }
 
   @Get()
-  @ApiOperation({ summary: 'Listar ciudades' })
-  @ApiResponse({
-    status: 200,
-    description: 'Lista de ciudades',
-    schema: {
-      example: {
-        items: [
-          { _id: '66d63c8f8baf234aa11e9876', nombre: 'Ambato', estado: true },
-          { _id: '66d63c8f8baf234aa11e9880', nombre: 'Quito', estado: true },
-        ],
-        total: 2,
-        page: 1,
-        limit: 50,
-      },
-    },
-  })
+  @ApiOperation({ summary: 'Listar ciudades con filtros' })
   findAll(
     @Query('q') q?: string,
     @Query('estado') estado?: string,
     @Query('limit') limit = '50',
     @Query('page') page = '1',
   ) {
-    const filter: any = {};
-    if (q) filter.nombre = new RegExp(q, 'i');
-    if (estado !== undefined) filter.estado = estado === 'true';
-    return this.ciudadModel
-      .find(filter)
-      .limit(Number(limit))
-      .skip((Number(page) - 1) * Number(limit))
-      .lean();
+    return this.ciudadService.findAll({
+      q,
+      estado,
+      limit: Number(limit),
+      page: Number(page),
+    });
+  }
+
+  @Get('registro')
+  @ApiOperation({ summary: 'Ciudades visibles para registro' })
+  findParaRegistro() {
+    return this.ciudadService.findParaRegistro();
+  }
+
+  @Get('promociones')
+  @ApiOperation({ summary: 'Ciudades activas para promociones' })
+  findParaPromociones() {
+    return this.ciudadService.findParaPromociones();
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Obtener detalle de una ciudad' })
-  @ApiResponse({
-    status: 200,
-    description: 'Detalle de la ciudad',
-    schema: {
-      example: {
-        _id: '66d63c8f8baf234aa11e9876',
-        nombre: 'Ambato',
-        estado: true,
-        geo: { lat: -1.24908, lng: -78.61675 },
-      },
-    },
-  })
-  async findOne(@Param('id') id: string) {
-    const doc = await this.ciudadModel.findById(id).lean();
-    if (!doc) throw new NotFoundException('Ciudad no encontrada');
-    return doc;
+  @ApiOperation({ summary: 'Obtener ciudad por ID' })
+  findOne(@Param('id') id: string) {
+    return this.ciudadService.findById(id);
   }
 
   @Patch(':id')
-  @ApiOperation({ summary: 'Editar una ciudad' })
-  @ApiBody({
-    description: 'Datos para actualizar una ciudad',
-    schema: {
-      example: {
-        nombre: 'Ambato Centro',
-        estado: false,
-        geo: { lat: -1.25, lng: -78.61 },
-      },
-    },
-  })
+  @ApiOperation({ summary: 'Actualizar ciudad' })
   update(@Param('id') id: string, @Body() body: any) {
-    return this.ciudadModel.findByIdAndUpdate(id, body, { new: true }).lean();
-  }
-
-  @Patch(':id/desactivar')
-  @ApiOperation({ summary: 'Desactivar una ciudad' })
-  deactivate(@Param('id') id: string) {
-    return this.ciudadModel.findByIdAndUpdate(id, { estado: false }, { new: true }).lean();
+    return this.ciudadService.update(id, body);
   }
 
   @Patch(':id/activar')
-  @ApiOperation({ summary: 'Activar una ciudad' })
-  activate(@Param('id') id: string) {
-    return this.ciudadModel.findByIdAndUpdate(id, { estado: true }, { new: true }).lean();
+  activar(@Param('id') id: string) {
+    return this.ciudadService.activar(id);
+  }
+
+  @Patch(':id/desactivar')
+  desactivar(@Param('id') id: string) {
+    return this.ciudadService.desactivar(id);
   }
 
   @Delete(':id')
-  @ApiOperation({ summary: 'Eliminar ciudad (hard delete)' })
+  @ApiOperation({ summary: 'Eliminar ciudad' })
   remove(@Param('id') id: string) {
-    return this.ciudadModel.findByIdAndDelete(id).lean();
+    return this.ciudadService.remove(id);
   }
- 
-
-  @Get('ciudades/registro')
-  findCiudadesParaRegistro() {
-  return this.ciudadModel.find({ visibleParaRegistro: true }).lean();
-}
-
-  @Get('ciudades/filtro/promociones')
-  findCiudadesParaFiltroPromociones() {
-  return this.ciudadModel.find({ estado: true }).lean();
-}
-
 }

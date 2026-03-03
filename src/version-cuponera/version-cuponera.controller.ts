@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -13,6 +14,7 @@ import {
   ApiResponse,
   ApiBody,
   ApiParam,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { VersionCuponeraService } from './version-cuponera.service';
 import { CreateVersionCuponeraDto } from './dto/create-version-cuponera.dto';
@@ -53,7 +55,7 @@ export class VersionCuponeraController {
       },
     },
   })
-  create(@Body() dto: CreateVersionCuponeraDto) {
+  create(@Body() dto: any) {
     return this.versionService.create(dto);
   }
 
@@ -119,7 +121,7 @@ export class VersionCuponeraController {
       },
     },
   })
-  update(@Param('id') id: string, @Body() dto: CreateVersionCuponeraDto) {
+  update(@Param('id') id: string, @Body() dto: any) {
     return this.versionService.update(id, dto);
   }
 
@@ -136,4 +138,48 @@ export class VersionCuponeraController {
   activar(@Param('id') id: string) {
     return this.versionService.update(id, { estado: true } as any);
   }
+
+    @Get('buscar/nombre')
+  @ApiOperation({ summary: 'Buscar versiones por nombre (búsqueda parcial)' })
+  @ApiQuery({
+    name: 'nombre',
+    required: false,
+    description: 'Texto a buscar en el nombre (búsqueda case-insensitive)',
+    example: 'Enjoy',
+  })
+  @ApiQuery({
+    name: 'estado',
+    required: false,
+    description: 'Filtrar por estado',
+    example: true,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Listado de versiones que coinciden con el filtro',
+    schema: {
+      example: [
+        {
+          _id: '66d63c8f8baf234aa11ea111',
+          nombre: 'Enjoy 2025 – Q4',
+          estado: true,
+          numeroDeLocales: 120,
+          ciudadesDisponibles: ['Ambato', 'Quito'],
+        },
+        {
+          _id: '66d63c8f8baf234aa11ea112',
+          nombre: 'Enjoy 2025 – Q3',
+          estado: true,
+          numeroDeLocales: 100,
+          ciudadesDisponibles: ['Guayaquil'],
+        },
+      ],
+    },
+  })
+  buscarPorNombre(
+    @Query('nombre') nombre?: string,
+    @Query('estado') estado?: string,
+  ) {
+    return this.versionService.buscarPorNombre(nombre, estado);
+  }
+
 }

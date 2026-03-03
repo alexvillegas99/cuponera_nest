@@ -31,7 +31,8 @@ export class VersionCuponeraService {
 
   /** RAW sin populate (para validaciones/uso interno) */
   async findByIdRaw(id: string) {
-    if (!isValidObjectId(id)) throw new BadRequestException('ID de versión inválido');
+    if (!isValidObjectId(id))
+      throw new BadRequestException('ID de versión inválido');
     const doc = await this.versionModel.findById(id).lean();
     if (!doc) throw new NotFoundException('Versión de cuponera no encontrada');
     return doc;
@@ -59,13 +60,17 @@ export class VersionCuponeraService {
       .findById(id)
       .populate({ path: 'ciudadesDisponibles', select: 'nombre' })
       .lean();
-    if (!version) throw new NotFoundException('Versión de cuponera no encontrada');
+    if (!version)
+      throw new NotFoundException('Versión de cuponera no encontrada');
     return this.toNames(version);
   }
 
   async delete(id: string): Promise<{ ok: true }> {
     const result = await this.versionModel.findByIdAndDelete(id).exec();
-    if (!result) throw new NotFoundException('Versión de cuponera no encontrada para eliminar');
+    if (!result)
+      throw new NotFoundException(
+        'Versión de cuponera no encontrada para eliminar',
+      );
     return { ok: true };
   }
 
@@ -74,7 +79,36 @@ export class VersionCuponeraService {
       .findByIdAndUpdate(id, dto, { new: true })
       .populate({ path: 'ciudadesDisponibles', select: 'nombre' })
       .lean();
-    if (!updated) throw new NotFoundException('Versión de cuponera no encontrada');
+    if (!updated)
+      throw new NotFoundException('Versión de cuponera no encontrada');
     return this.toNames(updated);
+  }
+
+  // ... otros métodos existentes ...
+
+  async buscarPorNombre(nombre?: string, estado?: string): Promise<any[]> {
+    // Construir filtro dinámico
+    const filtro: any = {};
+
+    if (nombre && nombre.trim() !== '') {
+      // Búsqueda case-insensitive con regex
+      filtro.nombre = {
+        $regex: nombre.trim(),
+        $options: 'i',
+      };
+    }
+
+    if (estado !== undefined) {
+      // Convertir string a boolean
+      filtro.estado = estado === 'true' || estado === '1';
+    }
+
+    const resultados = await this.versionModel
+      .find(filtro)
+      .populate({ path: 'ciudadesDisponibles', select: 'nombre' })
+      .sort({ nombre: 1 }) // Ordenar alfabéticamente
+      .lean();
+
+    return resultados.map((d) => this.toNames(d));
   }
 }

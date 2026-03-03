@@ -7,6 +7,9 @@ export type ECFormatOptions = {
 
 @Injectable()
 export class DateTimeService {
+  getYear() {
+    return new Date().getFullYear().toString();
+  }
   private readonly locale = 'es-EC';
   private readonly timeZone = 'America/Guayaquil';
 
@@ -29,7 +32,7 @@ export class DateTimeService {
     }).formatToParts(date);
 
     const get = (t: Intl.DateTimeFormatPartTypes) =>
-      parts.find(p => p.type === t)?.value ?? '';
+      parts.find((p) => p.type === t)?.value ?? '';
 
     const base = `${get('day')}/${get('month')}/${get('year')} ${get('hour')}:${get('minute')}:${get('second')}`;
     if (opts.withTZ) {

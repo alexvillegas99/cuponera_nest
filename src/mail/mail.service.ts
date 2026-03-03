@@ -5,9 +5,8 @@ import * as nodemailer from 'nodemailer';
 import * as fs from 'fs';
 import * as path from 'path';
 import { MailerService } from '@nestjs-modules/mailer';
-@Injectable() 
+@Injectable()
 export class MailService {
-
   constructor(private readonly mailerService: MailerService) {}
 
   async enviar(to: string, subject: string, html: string) {
@@ -19,9 +18,9 @@ export class MailService {
 
     try {
       console.log('📧 Enviando correo...');
-      console.log(mailOptions)
+   //   console.log(mailOptions);
       const result = await this.mailerService.sendMail(mailOptions);
-      console.log('✉️ Correo enviado:', result);
+      console.log('✉️ Correo enviado:', result.messageId);
       return true;
     } catch (error) {
       console.error('❌ Error al enviar el correo:', error);

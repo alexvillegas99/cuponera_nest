@@ -32,17 +32,24 @@ export class CuponController {
   @ApiOperation({ summary: 'Crear un cupón individual' })
   @ApiResponse({ status: 201, description: 'Cupón creado exitosamente' })
   @ApiResponse({ status: 400, description: 'Datos inválidos' })
-  @ApiBody({ type: CreateCuponDto })
-  create(@Body() dto: CreateCuponDto) {
-    return this.cuponService.create(dto);
+
+  async create(@Body() dto: any) {
+    return await this.cuponService.create(dto);
   }
 
-  @Get()
-  @ApiOperation({ summary: 'Listar todos los cupones' })
-  @ApiResponse({ status: 200, description: 'Lista de cupones' })
-  findAll() {
-    return this.cuponService.findAll();
-  }
+@Get()
+@ApiOperation({ summary: 'Listar cupones paginados' })
+@ApiQuery({ name: 'page', required: false, example: 1 })
+@ApiQuery({ name: 'limit', required: false, example: 10 })
+@ApiQuery({ name: 'search', required: false, example: 'Cinthya' })
+  async findAll(
+  @Query('page') page = 1,
+  @Query('limit') limit = 10,
+  @Query('search') search?: string,
+) {
+  return await this.cuponService.findAll(+page, +limit, search);
+}
+
 
   @Get(':id')
   @ApiOperation({ summary: 'Buscar cupón por ID' })

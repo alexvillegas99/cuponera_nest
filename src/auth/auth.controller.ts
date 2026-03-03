@@ -48,9 +48,11 @@ export class AuthController {
      const dispositivo = ua?.device?.vendor
       ? ua.os.name + ' - ' + ua.device.vendor
       : ua.os.name;
+    console.log('dispositivo', dispositivo);
+    console.log('ubicacion', ubicacion);
     const result = await this.authService.loginUsuario(body,ipQuery,ubicacion,dispositivo);
     return res.status(200).json(result);
-  }
+  } 
 
 
   @ApiOperation({ summary: 'Login de cliente (email/clave)' })

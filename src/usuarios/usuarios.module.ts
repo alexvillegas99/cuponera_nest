@@ -8,6 +8,7 @@ import {
   Comentario,
   ComentarioSchema,
 } from 'src/comentario/schema/comentario.schema';
+import { S3Module } from 'src/amazon-s3/amazon-s3.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import {
       { name: Usuario.name, schema: UsuarioSchema },
       { name: Comentario.name, schema: ComentarioSchema },
     ]),
+    S3Module
   ],
   controllers: [UsuariosController],
   providers: [UsuariosService],

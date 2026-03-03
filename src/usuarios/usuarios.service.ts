@@ -18,6 +18,9 @@ import {
   PromoPrincipalDto,
   ComentarioDto,
 } from './dto/comercio-detalle.dto';
+import { AmazonS3Service } from 'src/amazon-s3/amazon-s3.service';
+import { MailService } from 'src/mail/mail.service';
+import { DateTimeService } from 'src/common/services/dateTimeService';
 
 @Injectable()
 export class UsuariosService {
@@ -25,8 +28,46 @@ export class UsuariosService {
     @InjectModel(Usuario.name) private usuarioModel: Model<UsuarioDocument>,
     @InjectModel(Comentario.name)
     private readonly comentarioModel: Model<ComentarioDocument>,
+    private readonly amazonS3Service: AmazonS3Service,
+    private readonly mailService: MailService,
+    private readonly dateService: DateTimeService,
   ) {}
   private readonly logger = new Logger(UsuariosService.name);
+
+  // ===== Helpers internos =====
+  private async procesarImagen(
+    base64?: string,
+    route?: string,
+  ): Promise<string | undefined> {
+    if (!base64) return undefined;
+    if (base64.startsWith('http')) return base64; // 👈 ya es URL
+    const uploaded = await this.amazonS3Service.uploadBase64({
+      image: base64,
+      route: route || 'enjoy/usuarios',
+    });
+    return uploaded?.url;
+  }
+
+  private async procesarPromocion(
+    promo: any,
+    nombreLocal: string,
+  ): Promise<any> {
+    if (!promo) return promo;
+    const safeName = nombreLocal?.replace(/\s+/g, '-').toLowerCase() || 'promo';
+    const route = `enjoy/promos/${safeName}`;
+
+    return {
+      ...promo,
+      logoUrl: await this.procesarImagen(
+        promo.logoBase64 || promo.logoUrl,
+        `${route}/logos`,
+      ),
+      imageUrl: await this.procesarImagen(
+        promo.imageBase64 || promo.imageUrl,
+        `${route}/imagenes`,
+      ),
+    };
+  }
 
   // ===== Helpers base existentes =====
   findByEmail(email: string) {
@@ -82,15 +123,81 @@ export class UsuariosService {
     return user;
   }
 
+  strongPassword(len = 12) {
+    const U = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const L = 'abcdefghijklmnopqrstuvwxyz';
+    const D = '0123456789';
+    const S = '!@#$%^&*()-_=+[]{};:,.?/';
+
+    const all = U + L + D + S;
+
+    // asegurar al menos uno de cada
+    const req = [
+      U[Math.floor(Math.random() * U.length)],
+      L[Math.floor(Math.random() * L.length)],
+      D[Math.floor(Math.random() * D.length)],
+      S[Math.floor(Math.random() * S.length)],
+    ];
+
+    // completar hasta len
+    for (let i = req.length; i < len; i++) {
+      req.push(all[Math.floor(Math.random() * all.length)]);
+    }
+
+    // mezclar (Fisher–Yates)
+    for (let i = req.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [req[i], req[j]] = [req[j], req[i]];
+    }
+
+    return req.join('');
+  }
   // ===== CRUD usado por tu controlador =====
 
   async create(dto: any): Promise<any> {
     const existeEmail = await this.findByEmail(dto.email);
     if (existeEmail) throw new BadRequestException('El email ya está en uso');
+    let claveSinEncriptar;
+    //crearClaveAleatoria
+    if (!dto.clave) {
+      dto.clave = this.strongPassword(12); // generar clave aleatoria de 12 caracteres
+      claveSinEncriptar = dto.clave;
+    }
 
     dto.clave = bcrypt.hashSync(dto.clave, 10);
-    const created = await this.usuarioModel.create(dto);
 
+    // 👇 Procesa imágenes del detalle principal
+    if (dto.detallePromocion) {
+      dto.detallePromocion = await this.procesarPromocion(
+        dto.detallePromocion,
+        dto.nombre,
+      );
+    }
+    // 👇 Procesa imágenes de extras
+    if (Array.isArray(dto.detallePromocionesExtra)) {
+      dto.detallePromocionesExtra = await Promise.all(
+        dto.detallePromocionesExtra.map((p: any) =>
+          this.procesarPromocion(p, dto.nombre),
+        ),
+      );
+    }
+    const fecha = this.dateService.formatEC();
+    // Año actual (4 dígitos)
+    const anio = this.dateService.getYear();
+
+    const created = await this.usuarioModel.create(dto);
+    const html = this.mailService.getTemplate('bienvenida.html', {
+      nombre: dto.nombre,
+      email: dto.email,
+      fecha,
+      anio,
+      enlace_portal:
+        process.env.ENJOY_PORTAL_URL || 'https://enjoy.pixelsmart.site',
+      enlace_soporte:
+        process.env.ENJOY_PORTAL_SOPORTE || 'https://enjoy.pixelsmart.site',
+    });
+
+    await this.mailService.enviar(dto.email, 'Bienvenido/a a Enjoy', html);
     const populated = await this.usuarioModel
       .findById(created._id)
       .populate('ciudades', 'nombre')
@@ -103,6 +210,7 @@ export class UsuariosService {
   async findAll(): Promise<any[]> {
     const docs = await this.usuarioModel
       .find()
+      .populate('usuarioCreacion', 'nombre email')
       .populate('ciudades', 'nombre')
       .populate('categorias', 'nombre')
       .lean();
@@ -147,6 +255,20 @@ export class UsuariosService {
       dto.clave = bcrypt.hashSync(dto.clave, 10);
     }
 
+    if (dto.detallePromocion) {
+      dto.detallePromocion = await this.procesarPromocion(
+        dto.detallePromocion,
+        dto.nombre,
+      );
+    }
+    if (Array.isArray(dto.detallePromocionesExtra)) {
+      dto.detallePromocionesExtra = await Promise.all(
+        dto.detallePromocionesExtra.map((p: any) =>
+          this.procesarPromocion(p, dto.nombre),
+        ),
+      );
+    }
+
     const updated = await this.usuarioModel
       .findByIdAndUpdate(id, dto, { new: true })
       .populate('ciudades', 'nombre')
@@ -156,6 +278,34 @@ export class UsuariosService {
     if (!updated)
       throw new NotFoundException(`Usuario con ID ${id} no encontrado`);
     return this.mapNombres(updated);
+  }
+
+  async findAllAdmin(params: any) {
+    const { q, rol, estado, page, limit } = params;
+
+    const filter: any = {};
+
+    if (q) {
+      filter.$or = [
+        { nombre: { $regex: q, $options: 'i' } },
+        { email: { $regex: q, $options: 'i' } },
+        { identificacion: { $regex: q, $options: 'i' } },
+      ];
+    }
+
+    if (rol) filter.rol = rol;
+    if (estado !== undefined) filter.estado = estado === 'true';
+
+    const data = await this.usuarioModel
+      .find(filter)
+      .select('-clave')
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .sort({ createdAt: -1 });
+
+    const total = await this.usuarioModel.countDocuments(filter);
+
+    return { data, total, page, limit };
   }
 
   async createUserWithLocal(id: string, dto: any) {
@@ -359,5 +509,112 @@ export class UsuariosService {
     u.clave = hash;
     await u.save();
     return { ok: true };
+  }
+
+  async findEstablecimientos({
+    page = 1,
+    limit = 12,
+    q = '',
+  }: {
+    page: number;
+    limit: number;
+    q?: string;
+  }) {
+    const ctx = 'findEstablecimientos';
+    this.logger.log(`[${ctx}] INIT → page=${page}, limit=${limit}, q=${q}`);
+
+    const safePage = Number(page) > 0 ? Number(page) : 1;
+    const safeLimit = Number(limit) > 0 ? Number(limit) : 12;
+    const skip = (safePage - 1) * safeLimit;
+
+    const searchText =
+      typeof q === 'string' && q !== 'undefined' ? q.trim() : '';
+
+    this.logger.log(`[${ctx}] searchText="${searchText}", skip=${skip}`);
+
+    const search = searchText
+      ? {
+          $or: [
+            { nombre: { $regex: searchText, $options: 'i' } },
+            { email: { $regex: searchText, $options: 'i' } },
+            { identificacion: { $regex: searchText, $options: 'i' } },
+            { promocion: { $regex: searchText, $options: 'i' } },
+            { 'detallePromocion.title': { $regex: searchText, $options: 'i' } },
+            { 'detallePromocion.tags': { $in: [new RegExp(searchText, 'i')] } },
+          ],
+        }
+      : {};
+
+    const baseQuery = {
+      rol: { $in: [RolUsuario.LOCAL] },
+      ...search,
+    };
+
+    this.logger.log(`[${ctx}] baseQuery=${JSON.stringify(baseQuery)}`);
+
+    try {
+      this.logger.log(`[${ctx}] Ejecutando queries…`);
+
+      const [items, total] = await Promise.all([
+        this.usuarioModel
+          .find(baseQuery, {
+            nombre: 1,
+            email: 1,
+            estado: 1,
+            ciudades: 1,
+            categorias: 1,
+            detallePromocion: 1,
+            promedioCalificacion: 1,
+            telefono: 1,
+          })
+          .populate('ciudades', 'nombre')
+          .populate('categorias', 'nombre')
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(safeLimit)
+          .lean(),
+
+        this.usuarioModel.countDocuments(baseQuery),
+      ]);
+
+      this.logger.log(
+        `[${ctx}] Query OK → items=${items.length}, total=${total}`,
+      );
+
+      return {
+        page: safePage,
+        limit: safeLimit,
+        total,
+        pages: Math.ceil(total / safeLimit),
+        items: items.map((i) => this.mapNombres(i)),
+      };
+    } catch (error) {
+      this.logger.error(
+        `[${ctx}] ERROR ejecutando query`,
+        error?.stack || error,
+      );
+      throw error;
+    }
+  }
+  async buscarPorEmail(email: string) {
+    const data = await this.usuarioModel
+      .findOne({ email: email.toLowerCase() })
+      .lean()
+      .then((d) => this.mapNombres(d));
+    //si existe retirbna true sino false
+    return !!data;
+  }
+  async actualizarContraseniaRecuperacion(email: string, nuevaClave: string) {
+    const data = await this.usuarioModel.findOneAndUpdate(
+      { email: email.toLowerCase() },
+      { clave: bcrypt.hashSync(nuevaClave, 10) },
+      { new: true },
+    );
+    const template = this.mailService.getTemplate('credenciales.html', {
+      nombre: data?.nombre || 'Usuario',
+      fecha: this.dateService.formatEC(),
+    });
+    this.mailService.enviar(email, 'Recuperación de contraseña', template);
+    return !!data;
   }
 }

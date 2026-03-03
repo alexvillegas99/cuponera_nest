@@ -27,7 +27,7 @@ import {
           },
         },
         defaults: {
-          from: `"Autonic" <${configService.get(MAIL_USER)}>`,
+          from: `"Enjoy" <${configService.get(MAIL_USER)}>`,
         },
       }),
     }),

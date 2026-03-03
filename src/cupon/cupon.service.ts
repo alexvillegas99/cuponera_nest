@@ -40,41 +40,152 @@ export class CuponService {
     private readonly _historicoModel: Model<HistoricoCuponDocument>,
   ) {}
   private readonly logger = new Logger(CuponService.name);
-  async create(dto: CreateCuponDto): Promise<Cupon> {
-    const version = await this._versionModel.findById(dto.version);
-    if (!version)
-      throw new NotFoundException('Versión de cuponera no encontrada');
-
-    // Validar fechas
+  /**
+   * Crear un nuevo cupón
+   */
+  async create(dto: any): Promise<any> {
+    // 4. Validar fechas si vienen
     if (dto.fechaActivacion && dto.fechaVencimiento) {
-      const f1 = new Date(dto.fechaActivacion);
-      const f2 = new Date(dto.fechaVencimiento);
-      if (f1 >= f2) {
+      const fechaActivacion = new Date(dto.fechaActivacion);
+      const fechaVencimiento = new Date(dto.fechaVencimiento);
+
+      if (fechaActivacion >= fechaVencimiento) {
         throw new BadRequestException(
           'La fecha de vencimiento debe ser posterior a la de activación',
         );
       }
     }
 
-    // Calcular secuencial si no viene en el DTO
-    let secuencial = dto.secuencial;
-    if (!secuencial) {
-      const count = await this._cuponModel.countDocuments({
-        version: dto.version,
-      });
-      secuencial = count + 1;
-    }
+    // 5. Calcular secuencial si no viene
+    let secuencial;
+    const ultimoCupon = await this._cuponModel
+      .findOne({ version: new Types.ObjectId(dto.version) })
+      .sort({ secuencial: -1 })
+      .select('secuencial')
+      .lean();
 
-    const cupon = new this._cuponModel({
-      ...dto,
+    secuencial = ultimoCupon ? ultimoCupon.secuencial + 1 : 1;
+
+    const fechaActivacion = new Date();
+    const fechaVencimiento = new Date(fechaActivacion);
+    fechaVencimiento.setFullYear(fechaVencimiento.getFullYear() + 1);
+    // 6. Establecer valores por defecto
+    const cuponData = {
+      version: new Types.ObjectId(dto.version),
+      cliente: new Types.ObjectId(dto.cliente),
+      usuarioActivador: dto.usuarioActivador
+        ? new Types.ObjectId(dto.usuarioActivador)
+        : undefined,
       secuencial,
-    });
+      estado: EstadoCupon.ACTIVO,
+      numeroDeEscaneos: 0,
+      fechaActivacion,
+      fechaVencimiento,
+      ultimoScaneo: null,
+    };
 
-    return cupon.save();
+    // 7. Crear el cupón
+    const cupon = new this._cuponModel(cuponData);
+    await cupon.save();
+
+    // 8. Retornar el cupón creado con populate
+    // 9. Retornar el cupón creado con populate
+    return this._cuponModel
+      .findById(cupon._id)
+      .populate([
+        { path: 'version', select: 'nombre estado numeroDeLocales' },
+        { path: 'cliente', select: 'nombres apellidos email identificacion' },
+        { path: 'usuarioActivador', select: 'nombre email' },
+      ])
+      .lean();
   }
 
-  async findAll(): Promise<Cupon[]> {
-    return this._cuponModel.find().populate('version').exec();
+  async findAll(
+    page: number,
+    limit: number,
+    search?: string,
+  ): Promise<{ data: Cupon[]; total: number; page: number; limit: number }> {
+    const skip = (page - 1) * limit;
+
+    // 🔎 condiciones OR globales (planas)
+    const orConditions: any[] = [];
+
+    if (search) {
+      // campos del cupón
+      orConditions.push(
+        { secuencial: Number(search) || -1 },
+        { estado: { $regex: search, $options: 'i' } },
+      );
+
+      // campos del cliente
+      orConditions.push(
+        { 'cliente.nombres': { $regex: search, $options: 'i' } },
+        { 'cliente.apellidos': { $regex: search, $options: 'i' } },
+        { 'cliente.identificacion': { $regex: search, $options: 'i' } },
+        { 'cliente.email': { $regex: search, $options: 'i' } },
+      );
+    }
+
+    const pipeline: any[] = [
+      // 🔗 JOIN cliente
+      {
+        $lookup: {
+          from: 'clientes',
+          localField: 'cliente',
+          foreignField: '_id',
+          as: 'cliente',
+        },
+      },
+      {
+        $unwind: {
+          path: '$cliente',
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+
+      // 🔎 MATCH GLOBAL
+      ...(search ? [{ $match: { $or: orConditions } }] : []),
+
+      // 🔗 JOIN usuario activador
+      {
+        $lookup: {
+          from: 'usuarios',
+          localField: 'usuarioActivador',
+          foreignField: '_id',
+          as: 'usuarioActivador',
+        },
+      },
+      {
+        $unwind: {
+          path: '$usuarioActivador',
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+
+      // 📄 ORDEN (opcional, recomendado)
+      { $sort: { updatedAt: -1 } },
+
+      // 📊 PAGINACIÓN
+      { $skip: skip },
+      { $limit: limit },
+    ];
+
+    // 🧮 TOTAL CORRECTO (sin skip/limit)
+    const totalPipeline = pipeline.filter(
+      (stage) => !('$skip' in stage) && !('$limit' in stage),
+    );
+
+    const [data, totalArr] = await Promise.all([
+      this._cuponModel.aggregate(pipeline),
+      this._cuponModel.aggregate([...totalPipeline, { $count: 'total' }]),
+    ]);
+
+    return {
+      data,
+      total: totalArr[0]?.total ?? 0,
+      page,
+      limit,
+    };
   }
 
   async findById(id: string): Promise<Cupon> {
@@ -430,7 +541,7 @@ export class CuponService {
             rol: RolUsuario.LOCAL,
             estado: true,
             ...ciudadFilter,
-             'detallePromocion.title': { $exists: true, $ne: null },
+            'detallePromocion.title': { $exists: true, $ne: null },
           },
           {
             nombre: 1,
@@ -440,7 +551,7 @@ export class CuponService {
             'detallePromocion.logoUrl': 1,
             'detallePromocion.rating': 1,
             'detallePromocion.scheduleLabel': 1,
-             'detallePromocion.placeName': 1,
+            'detallePromocion.placeName': 1,
           },
         )
         .populate({

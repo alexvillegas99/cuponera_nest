@@ -99,9 +99,21 @@ export class UsuariosController {
   create(@Body() dto: any) {
     return this.usuariosService.create(dto);
   }
-
-
-
+  @Get('establecimientos')
+  @ApiOperation({
+    summary: 'Listado de establecimientos (admin-local y staff)',
+  })
+  findEstablecimientos(
+    @Query('page') page = '1',
+    @Query('limit') limit = '12',
+    @Query('q') q = '',
+  ) {
+    return this.usuariosService.findEstablecimientos({
+      page: Number(page),
+      limit: Number(limit),
+      q,
+    });
+  }
   @Get('por-ciudades')
   @ApiOperation({
     summary: 'Listar usuarios que tienen promoción en una o varias ciudades',
@@ -169,6 +181,24 @@ export class UsuariosController {
     return this.usuariosService.findAll();
   }
 
+  @Get('admin-list')
+  @ApiOperation({ summary: 'Listado administrativo de usuarios con filtros' })
+  findAllAdmin(
+    @Query('q') q?: string,
+    @Query('rol') rol?: string,
+    @Query('estado') estado?: string,
+    @Query('page') page = '1',
+    @Query('limit') limit = '20',
+  ) {
+    return this.usuariosService.findAllAdmin({
+      q,
+      rol,
+      estado,
+      page: Number(page),
+      limit: Number(limit),
+    });
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Obtener usuario por ID' })
   @ApiParam({ name: 'id', required: true })
@@ -188,15 +218,10 @@ export class UsuariosController {
     return this.usuariosService.delete(id);
   }
 
-
-
-    @Patch('reset')
+  @Patch('reset')
   async reset(@Body() dto: any) {
     // Si tu reset NO requiere code, se ignora dto.code
-    return this.usuariosService.resetPassword(
-      dto.email,
-      dto.password
-    );
+    return this.usuariosService.resetPassword(dto.email, dto.password);
   }
 
   @Patch(':id')
@@ -260,5 +285,16 @@ export class UsuariosController {
     return this.usuariosService.obtenerInformacionComercioMini(usuarioId);
   }
 
-  
+  @Get('buscar/email/:email')
+  async buscarPorEmail(@Param('email') email: string) {
+    return this.usuariosService.buscarPorEmail(email);
+  }
+
+  @Patch('actualizar/contrasenia/recuperacion')
+  async actualizarContraseniaRecuperacion(@Body() dto: any) {
+    return this.usuariosService.actualizarContraseniaRecuperacion(
+      dto.email,
+      dto.password,
+    );  
+  }
 }

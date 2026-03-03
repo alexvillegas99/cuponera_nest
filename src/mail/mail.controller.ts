@@ -12,24 +12,20 @@ export class MailController {
 
   @Get()
   async findAll() {
-    const html = this.mailService.getTemplate('otp.html', {
+ /*    const html = this.mailService.getTemplate('otp.html', {
       nombre: 'Carlos',
       codigo: '473812'
     });
     await this.mailService.enviar('av058554@gmail.com', 'Tu código de verificación', html);
-
+ */
     const html2 = this.mailService.getTemplate('bienvenida.html', {
       nombre: 'Carlos',
+      fecha: new Date().toLocaleDateString(),
+      email:'avillegas7510@gmail.com',
+      anio:'2026'
+
     });
-    await this.mailService.enviar('av058554@gmail.com', 'Bienvenida', html2);
-
-    const html3 = this.mailService.getTemplate('credenciales.html', {
-      nombre: 'Carlos',
-    });
-    await this.mailService.enviar('av058554@gmail.com', 'Credenciales', html2);
-
-
-    
+    await this.mailService.enviar('avillegas7510@gmail.com', 'Bienvenida', html2);
 
 
   }

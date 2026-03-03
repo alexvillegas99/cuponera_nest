@@ -75,7 +75,54 @@ export class ClientesService {
     delete (c as any).password;
     return c;
   }
+  async findAdmin(filters: {
+    q?: string;
+    estado?: string;
+    page: number;
+    limit: number;
+  }) {
 
+    const { q, estado, page, limit } = filters;
+
+    const query: any = {};
+
+    // 🔎 Filtro estado
+    if (estado !== undefined && estado !== '') {
+      query.estado = estado === 'true';
+    }
+
+    // 🔎 Búsqueda global
+    if (q && q.trim() !== '') {
+      const regex = new RegExp(q.trim(), 'i');
+
+      query.$or = [
+        { nombres: regex },
+        { apellidos: regex },
+        { email: regex },
+        { identificacion: regex },
+      ];
+    }
+
+    const skip = (page - 1) * limit;
+
+    const [data, total] = await Promise.all([
+      this.clienteModel
+        .find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+
+      this.clienteModel.countDocuments(query),
+    ]);
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+    };
+  }
   findAll(q?: string, estado?: string) {
     const filter: any = {};
     if (q) {

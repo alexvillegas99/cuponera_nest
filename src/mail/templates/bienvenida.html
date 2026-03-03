@@ -1,12 +1,187 @@
 <!DOCTYPE html>
-<html>
-  <body style="font-family: Arial, sans-serif; background: #f4f4f4; padding: 20px;">
-    <div style="background: #fff; padding: 20px; border-radius: 8px;">
-      <h1 style="color: #fbc02d;">¡Bienvenido a Autonic!</h1>
-      <p>Hola <strong>{{nombre}}</strong>,</p>
-      <p>Gracias por crear una cuenta con nosotros. Ya puedes acceder a todos nuestros servicios.</p>
-      <p style="margin-top: 20px;">Si tienes alguna pregunta, no dudes en contactarnos.</p>
-      <p>— El equipo de Autonic</p>
+<html lang="es" style="margin:0; padding:0;">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <meta http-equiv="x-ua-compatible" content="ie=edge" />
+    <title>¡Bienvenido a Enjoy!</title>
+    <style>
+      .preheader { display:none !important; visibility:hidden; opacity:0; color:transparent; height:0; width:0; overflow:hidden; mso-hide:all; }
+      @media (max-width: 600px) {
+        .container { width:100% !important; }
+        .px-24 { padding-left:16px !important; padding-right:16px !important; }
+        .py-32 { padding-top:24px !important; padding-bottom:24px !important; }
+        .h1 { font-size:22px !important; line-height:28px !important; }
+        .btn { width:100% !important; display:block !important; }
+      }
+      @media (prefers-color-scheme: dark) {
+        body, table, .bg-body { background:#0b1220 !important; }
+        .card { background:#0f172a !important; }
+        .muted { color:#94a3b8 !important; }
+        .title, .text { color:#e2e8f0 !important; }
+        .btn-primary { background:#2563eb !important; color:#ffffff !important; }
+        .btn-secondary { background:#0ea5e9 !important; color:#ffffff !important; }
+        .divider { border-color:#23324a !important; }
+      }
+      /* Outlook button fix */
+      a[x-apple-data-detectors] { color: inherit !important; text-decoration: none !important; }
+
+        /* Modo claro (default) */
+  .steps-box { border:1px solid #e2e8f0; border-radius:12px; padding:14px; background:#ffffff; }
+  .steps-title { font:600 12px/1 Arial, sans-serif; color:#0f172a; text-transform:uppercase; letter-spacing:.4px; padding-bottom:8px; }
+  .steps-text { font:14px/22px Arial, sans-serif; color:#334155; }
+
+  /* Dark mode */
+  @media (prefers-color-scheme: dark) {
+    .steps-box { background:#0f172a !important; border-color:#23324a !important; }
+    .steps-title { color:#e2e8f0 !important; }
+    .steps-text { color:#e2e8f0 !important; }
+  }
+    </style>
+  </head>
+  <body style="margin:0; padding:0; background:#f2f4f7;" class="bg-body">
+    <!-- Preheader -->
+    <div class="preheader">
+      ¡Bienvenido a Enjoy, {{nombre}}! Tu usuario ha sido creado el {{fecha}}. Crea tu contraseña con “Recuperar credenciales”.
     </div>
+
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f2f4f7;">
+      <tr>
+        <td align="center" style="padding: 24px 12px;">
+          <!-- Container -->
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" class="container" style="width:600px; max-width:600px;">
+
+            <!-- Header / Marca -->
+            <tr>
+              <td align="left" style="padding: 14px 20px; background:#010F23; border-radius:16px 16px 0 0;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td align="left" style="vertical-align:middle;">
+                      <img src="https://enjoystorage.s3.us-east-2.amazonaws.com/enjoy/logos/logoeny.png"
+                           alt="Enjoy" style="display:block; height:28px; max-height:28px;"
+                           onerror="this.style.display='none';" />
+                      <div style="font:700 18px/1 Arial, sans-serif; color:#ffffff; display:none;" aria-hidden="true">Enjoy</div>
+                    </td>
+                    <td align="right" style="vertical-align:middle;">
+                      <span style="font:600 12px/1 Arial, sans-serif; color:#9fb3d9; letter-spacing:.6px; text-transform:uppercase;">Bienvenida/o</span>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- Card -->
+            <tr>
+              <td style="background:#ffffff; border-radius:0 0 16px 16px; box-shadow:0 6px 20px rgba(1,15,35,0.06);" class="card">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td class="px-24 py-32" style="padding:28px 24px;">
+
+                      <!-- Icono circular -->
+                      <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                        <tr>
+                          <td width="56" height="56" align="center" valign="middle"
+                              style="width:56px; height:56px; background:#173A5E; border-radius:999px;">
+                            <span style="font:700 24px/56px Arial, sans-serif; color:#ffffff; display:inline-block;">🎉</span>
+                          </td>
+                        </tr>
+                      </table>
+
+                      <h1 class="h1 title" style="margin:16px 0 8px; font:800 24px/32px Arial, sans-serif; color:#0F172A;">
+                        ¡Bienvenido a Enjoy, {{nombre}}!
+                      </h1>
+
+                      <p class="text" style="margin:0 0 8px; font:14px/22px Arial, sans-serif; color:#334155;">
+                        Tu usuario fue creado exitosamente el <strong>{{fecha}}</strong> con el correo <strong>{{email}}</strong>.
+                      </p>
+
+                      <p class="text" style="margin:0 0 16px; font:14px/22px Arial, sans-serif; color:#334155;">
+                        Para activar tu acceso, por favor entra a nuestro portal y usa la opción
+                        <strong>“Recuperar credenciales”</strong> para crear tu contraseña.
+                      </p>
+
+                      <!-- Botones -->
+                      <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:14px;">
+                        <tr>
+                          <td align="left" style="padding: 0 0 8px;">
+                            <a href="{{enlace_portal}}" target="_blank"
+                               style="display:inline-block; background:#0ea5e9; color:#ffffff; text-decoration:none; font:600 14px/1 Arial, sans-serif; padding:12px 18px; border-radius:10px;"
+                               class="btn btn-secondary">Ir a Enjoy</a>
+                          </td>
+                        </tr>
+                        
+                      </table>
+
+                      <!-- Ayuda visual de pasos -->
+                     <!-- Pasos rápidos -->
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-top:18px; border-collapse:separate; border-spacing:0;">
+  <tr>
+    <td class="steps-box">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td class="steps-title">Pasos rápidos</td>
+        </tr>
+        <tr>
+          <td class="steps-text">
+            1) Entra a
+            <a href="{{enlace_portal}}" target="_blank" style="color:#0ea5e9; text-decoration:none; font-weight:600;">Enjoy</a><br/>
+            2) Haz clic en <strong>“Recuperar credenciales”</strong><br/>
+            3) Ingresa tu correo <strong>{{email}}</strong> y sigue las instrucciones
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+
+
+                      <!-- Nota -->
+                      <p class="muted" style="margin:16px 0 0; font:12px/18px Arial, sans-serif; color:#64748B;">
+                        Si no solicitaste esta cuenta o detectas actividad sospechosa, contáctanos y cambia tu contraseña.
+                      </p>
+
+                    </td>
+                  </tr>
+                </table>
+
+                <!-- Divider -->
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td style="padding:0 24px 16px;">
+                      <hr class="divider" style="border:none; border-top:1px solid #e2e8f0; margin:0;" />
+                    </td>
+                  </tr>
+                </table>
+
+                <!-- Footer dentro de la card -->
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td class="px-24" style="padding:0 24px 24px;">
+                      <p class="muted" style="margin:0 0 6px; font:12px/18px Arial, sans-serif; color:#64748B;">
+                        ¿Necesitas ayuda? Visita nuestro
+                        <a href="{{enlace_soporte}}" target="_blank" style="color:#173A5E; text-decoration:none; font-weight:600;">Centro de soporte</a>.
+                      </p>
+                      <p class="muted" style="margin:0; font:12px/18px Arial, sans-serif; color:#64748B;">
+                        Este es un correo automático, por favor no respondas a este mensaje.
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- Mini disclaimer -->
+            <tr>
+              <td align="center" style="padding: 14px 10px;">
+                <p class="muted" style="margin:0; font:11px/16px Arial, sans-serif; color:#64748B;">
+                  © {{anio}} Enjoy. Todos los derechos reservados.
+                </p>
+              </td>
+            </tr>
+
+          </table>
+        </td>
+      </tr>
+    </table>
   </body>
 </html>
