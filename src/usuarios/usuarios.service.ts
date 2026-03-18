@@ -617,4 +617,12 @@ export class UsuariosService {
     this.mailService.enviar(email, 'Recuperación de contraseña', template);
     return !!data;
   }
+
+  async actualizarUltimaConeccion(_id: string) {
+    return this.usuarioModel.findByIdAndUpdate(
+      _id,
+      { ultimaConexion: new Date() },
+      { new: true },
+    );
+  }
 }

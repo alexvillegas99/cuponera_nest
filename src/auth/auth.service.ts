@@ -27,14 +27,25 @@ export class AuthService {
     private readonly dateService: DateTimeService,
   ) {}
 
-  async loginUsuario({ correo, clave }: { correo: string; clave: string },ip,ubicacion,dispositivo) {
+  async loginUsuario(
+    { correo, clave }: { correo: string; clave: string },
+    ip,
+    ubicacion,
+    dispositivo,
+  ) {
     const user: any = await this.usuariosService.findByEmail(correo);
     console.log(user);
-    if (!user) throw new UnauthorizedException('Credenciales incorrectas');
-
+    if (!user)
+      throw new UnauthorizedException(
+        'Credenciales inválidas. Por favor, inténtalo de nuevo.s',
+      );
+    //VALIDAR ESTADO
+    if (!user.estado) throw new UnauthorizedException('Usuario desactivado, comuniquese con el administrador');
     const isPasswordValid = await bcrypt.compare(clave, user.clave);
     if (!isPasswordValid)
-      throw new UnauthorizedException('Credenciales incorrectas');
+      throw new UnauthorizedException(
+        'Credenciales inválidas. Por favor, inténtalo de nuevo.',
+      );
 
     const payload = { sub: user._id, kind: 'USUARIO' as const }; // 👈 añade kind
     const accessToken = this.jwtService.sign(payload);
@@ -44,13 +55,19 @@ export class AuthService {
       fecha: fecha,
       ubicacion,
       ip,
-      dispositivo
+      dispositivo,
     });
-      await this.mailService.enviar(user.email, 'Inicio de sesión', html);
+    await this.mailService.enviar(user.email, 'Inicio de sesión', html);
+    this.usuariosService.actualizarUltimaConeccion(user._id);
     return { accessToken, user };
   }
 
-  async loginCliente({ correo, clave }: { correo: string; clave: string },ip,ubicacion,dispositivo) {
+  async loginCliente(
+    { correo, clave }: { correo: string; clave: string },
+    ip,
+    ubicacion,
+    dispositivo,
+  ) {
     const cli: any = await this.clienteService.findByEmail(correo, true);
     if (!cli) throw new UnauthorizedException('Credenciales incorrectas');
 
@@ -61,15 +78,15 @@ export class AuthService {
     const accessToken = this.jwtService.sign(payload);
 
     delete cli.password;
-     const fecha = this.dateService.formatEC();
+    const fecha = this.dateService.formatEC();
     const html = this.mailService.getTemplate('login.html', {
       nombre: cli.nombres + ' ' + cli.apellidos,
       fecha: fecha,
       ubicacion,
       ip,
-      dispositivo
+      dispositivo,
     });
-      await this.mailService.enviar(cli.email, 'Inicio de sesión', html);
+    await this.mailService.enviar(cli.email, 'Inicio de sesión', html);
     return { accessToken, cliente: cli };
   }
 

@@ -6,13 +6,13 @@ export type UsuarioDocument = Usuario & Document;
 
 /** Día de la semana (ES / EN) */
 export type DiaSemana =
-  | 'lunes'     // Monday
-  | 'martes'    // Tuesday
+  | 'lunes' // Monday
+  | 'martes' // Tuesday
   | 'miercoles' // Wednesday
-  | 'jueves'    // Thursday
-  | 'viernes'   // Friday
-  | 'sabado'    // Saturday
-  | 'domingo';  // Sunday
+  | 'jueves' // Thursday
+  | 'viernes' // Friday
+  | 'sabado' // Saturday
+  | 'domingo'; // Sunday
 
 /** Subdocumento con el detalle de una promoción (todo opcional) */
 @Schema({ _id: false })
@@ -89,7 +89,15 @@ export class PromotionDetail {
    */
   @Prop({
     type: [String],
-    enum: ['lunes','martes','miercoles','jueves','viernes','sabado','domingo'],
+    enum: [
+      'lunes',
+      'martes',
+      'miercoles',
+      'jueves',
+      'viernes',
+      'sabado',
+      'domingo',
+    ],
     default: undefined,
   })
   diasAplicables?: DiaSemana[];
@@ -114,7 +122,8 @@ export class PromotionDetail {
   @Prop({ type: [Date], default: [] })
   fechasExcluidas?: Date[];
 }
-export const PromotionDetailSchema = SchemaFactory.createForClass(PromotionDetail);
+export const PromotionDetailSchema =
+  SchemaFactory.createForClass(PromotionDetail);
 
 @Schema({ timestamps: true })
 export class Usuario {
@@ -122,7 +131,13 @@ export class Usuario {
   @Prop({ required: true }) nombre: string;
 
   /** Email (único) / Email (unique) */
-  @Prop({ required: true, unique: true, trim: true, lowercase: true,index:true })
+  @Prop({
+    required: true,
+    unique: true,
+    trim: true,
+    lowercase: true,
+    index: true,
+  })
   email: string;
 
   /** Identificación (CI/RUC) / National ID (CI/RUC) */
@@ -152,16 +167,15 @@ export class Usuario {
   @Prop({ type: [{ type: Types.ObjectId, ref: 'Categoria' }], default: [] })
   categorias: Types.ObjectId[];
 
-
   /** Detalle de promoción / Promotion detail */
   @Prop({ type: PromotionDetailSchema, required: false })
   detallePromocion?: PromotionDetail;
 
   /** Lista de promos extra / Additional promotion details */
-  @Prop({ type: PromotionDetailSchema, default: null  })
+  @Prop({ type: PromotionDetailSchema, default: null })
   detallePromocionesExtra?: PromotionDetail;
 
-    /** Promedio de calificación (1-5) */
+  /** Promedio de calificación (1-5) */
   @Prop({ default: 0 })
   promedioCalificacion: number;
 
@@ -169,8 +183,9 @@ export class Usuario {
   @Prop({ default: 0 })
   totalComentarios: number;
 
-  @Prop({ trim: true }) telefono?: string;   // 👈 nuevo (opcional)
-  
+  @Prop({ trim: true }) telefono?: string; // 👈 nuevo (opcional)
+
+  @Prop() ultimaConexion?: Date;
 }
 
 export const UsuarioSchema = SchemaFactory.createForClass(Usuario);
@@ -193,7 +208,11 @@ UsuarioSchema.pre<UsuarioDocument>('save', function (next) {
       // Si NO aplica todos los días, debe haber al menos un día
       // If NOT every day, must provide at least one day
       if (!dp.diasAplicables || dp.diasAplicables.length === 0) {
-        return next(new Error('detallePromocion.diasAplicables debe tener al menos un día cuando aplicaTodosLosDias=false'));
+        return next(
+          new Error(
+            'detallePromocion.diasAplicables debe tener al menos un día cuando aplicaTodosLosDias=false',
+          ),
+        );
       }
     }
   }
@@ -205,7 +224,11 @@ UsuarioSchema.pre<UsuarioDocument>('save', function (next) {
       if (p.aplicaTodosLosDias) {
         p.diasAplicables = undefined;
       } else if (!p.diasAplicables || p.diasAplicables.length === 0) {
-        return next(new Error('detallePromocionesExtra[].diasAplicables debe tener al menos un día cuando aplicaTodosLosDias=false'));
+        return next(
+          new Error(
+            'detallePromocionesExtra[].diasAplicables debe tener al menos un día cuando aplicaTodosLosDias=false',
+          ),
+        );
       }
     }
   }
@@ -220,7 +243,8 @@ UsuarioSchema.pre<any>('findOneAndUpdate', function (next) {
 
   // Cuando viene con $set / direct assign
   const dp = update.detallePromocion ?? update.$set?.detallePromocion;
-  const list = update.detallePromocionesExtra ?? update.$set?.detallePromocionesExtra;
+  const list =
+    update.detallePromocionesExtra ?? update.$set?.detallePromocionesExtra;
 
   const ensure = (promo: any, pathLabel: string) => {
     if (!promo) return;
@@ -233,7 +257,11 @@ UsuarioSchema.pre<any>('findOneAndUpdate', function (next) {
       // Para arrays, el front debería mandar el objeto coherente ya.
     } else if (promo.aplicaTodosLosDias === false) {
       if (!promo.diasAplicables || promo.diasAplicables.length === 0) {
-        return next(new Error(`${pathLabel}.diasAplicables debe tener al menos un día cuando aplicaTodosLosDias=false`));
+        return next(
+          new Error(
+            `${pathLabel}.diasAplicables debe tener al menos un día cuando aplicaTodosLosDias=false`,
+          ),
+        );
       }
     }
   };
