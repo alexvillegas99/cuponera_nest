@@ -191,10 +191,8 @@ export class UsuariosService {
       email: dto.email,
       fecha,
       anio,
-      enlace_portal:
-        process.env.ENJOY_PORTAL_URL || 'https://enjoy.pixelsmart.site',
-      enlace_soporte:
-        process.env.ENJOY_PORTAL_SOPORTE || 'https://enjoy.pixelsmart.site',
+      enlace_portal: 'https://portal.ecuenjoy.com/',
+      enlace_soporte:  'https://portal.ecuenjoy.com/soporte',
     });
 
     await this.mailService.enviar(dto.email, 'Bienvenido/a a Enjoy', html);
@@ -613,6 +611,7 @@ export class UsuariosService {
     const template = this.mailService.getTemplate('credenciales.html', {
       nombre: data?.nombre || 'Usuario',
       fecha: this.dateService.formatEC(),
+         enlace_soporte:  'https://portal.ecuenjoy.com/soporte',
     });
     this.mailService.enviar(email, 'Recuperación de contraseña', template);
     return !!data;
