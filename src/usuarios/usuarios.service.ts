@@ -596,7 +596,7 @@ export class UsuariosService {
   }
   async buscarPorEmail(email: string) {
     const data = await this.usuarioModel
-      .findOne({ email: email.toLowerCase() })
+      .findOne({ email: email.toLowerCase() }) 
       .lean()
       .then((d) => this.mapNombres(d));
     //si existe retirbna true sino false

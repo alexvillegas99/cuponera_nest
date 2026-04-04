@@ -24,6 +24,8 @@ import { MailModule } from './mail/mail.module';
 import { CommonModule } from './common/common.module';
 import { IpDetailsModule } from './ip-details/ip-details.module';
 import { EmpresasSolicitudesModule } from './empresas-solicitudes/empresas-solicitudes.module';
+import { ConfiguracionModule } from './configuracion/configuracion.module';
+import { SolicitudCuponeraModule } from './solicitud-cuponera/solicitud-cuponera.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, load: [configuration] }),
@@ -46,7 +48,9 @@ import { EmpresasSolicitudesModule } from './empresas-solicitudes/empresas-solic
     MailModule,
     CommonModule,
     IpDetailsModule,
-    EmpresasSolicitudesModule
+    EmpresasSolicitudesModule,
+    ConfiguracionModule,
+    SolicitudCuponeraModule,
   ],
   controllers: [AppController],
   providers: [AppService],

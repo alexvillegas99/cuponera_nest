@@ -32,7 +32,7 @@ async function bootstrap() {
   //Prefijo Global de la api
   app.setGlobalPrefix('api');
   // Configuración de CORS
-  app.enableCors({
+  app.enableCors({ 
     origin: ['*'],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     allowedHeaders: 'Content-Type, Accept',
