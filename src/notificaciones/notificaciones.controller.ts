@@ -3,12 +3,14 @@ import { NotificacionesService } from './notificaciones.service';
 import { CreateNotificacioneDto } from './dto/create-notificacione.dto';
 import { UpdateNotificacioneDto } from './dto/update-notificacione.dto';
 import { ApiBody, ApiTags } from '@nestjs/swagger';
+import { Auth } from 'src/auth/decorators/auth.decorator';
 @ApiTags('notificaciones')
 @Controller('notificaciones')
 export class NotificacionesController {
   constructor(private readonly notificacionesService: NotificacionesService) {}
 
   @Get('token')
+  @Auth()
   async getFirebaseToken(): Promise<{ token: string }> {
     const token = await this.notificacionesService.getAccessToken();
     return { token };
@@ -40,18 +42,21 @@ export class NotificacionesController {
   })
   
   @Post('enviar')
+  @Auth()
   async enviarNotificacion(@Body() notificacion: any) {
     return this.notificacionesService.enviarNotificacion(notificacion);
   }
 
 
   @Get()
+  @Auth()
   findAll() {
     return this.notificacionesService.getAllNotifications();
   }
 
 
   @Post('reenviar')
+  @Auth()
   reenviarNotificacion(@Body() notificacion: any) { 
     return this.notificacionesService.enviarConAxios(notificacion);
   }

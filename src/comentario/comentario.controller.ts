@@ -16,6 +16,7 @@ import {
   ApiParam,
   ApiQuery,
 } from '@nestjs/swagger';
+import { Auth } from 'src/auth/decorators/auth.decorator';
 import { ComentarioService } from './comentario.service';
 
 @ApiTags('Comentarios')
@@ -93,6 +94,7 @@ crear(@Body() dto: { usuarioId: string; clienteId: string; texto: string; califi
   }
 
   @Delete(':comentarioId')
+  @Auth()
   @ApiOperation({ summary: 'Eliminar comentario y recalcular promedio del usuario' })
   @ApiParam({ name: 'comentarioId', description: 'ID del comentario' })
   @ApiResponse({ status: 200, description: 'Eliminado', schema: { example: { ok: true } } })
@@ -101,6 +103,7 @@ crear(@Body() dto: { usuarioId: string; clienteId: string; texto: string; califi
   }
 
   @Put(':comentarioId')
+@Auth()
 @ApiOperation({ summary: 'Actualizar comentario por ID y recalcular promedio del usuario' })
 @ApiParam({ name: 'comentarioId', description: 'ID del comentario' })
 @ApiBody({

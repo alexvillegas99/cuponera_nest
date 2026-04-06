@@ -23,9 +23,10 @@ export interface DetalleCuponResponse {
     _id: string;
     nombre: string;
     estado: boolean;
-    ciudadesDisponibles: string[]; // ids
-    numeroDeLocales: number;
+    ciudadesDisponibles: string[];
+    totalLocales: number;
     descripcion?: string;
+    precio?: string;
   };
 
   // Universo de candidatos = admin-local en ciudades de la versión

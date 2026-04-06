@@ -17,6 +17,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { Auth } from 'src/auth/decorators/auth.decorator';
 import { EmpresasSolicitudesService } from './empresas-solicitudes.service';
 import { SolicitudEstado } from './schema/empresa-solicitud.schema';
 
@@ -43,6 +44,7 @@ export class EmpresasSolicitudesController {
   }
 
   @Get()
+  @Auth()
   @ApiOperation({ summary: 'Listar solicitudes (opcional: por estado)' })
   @ApiQuery({ name: 'estado', required: false, enum: SolicitudEstado })
   findAll(@Query('estado') estado?: any) {
@@ -50,6 +52,7 @@ export class EmpresasSolicitudesController {
   }
 
   @Get(':id')
+  @Auth()
   @ApiOperation({ summary: 'Obtener una solicitud por ID' })
   @ApiParam({ name: 'id' })
   findOne(@Param('id') id: string) {
@@ -57,6 +60,7 @@ export class EmpresasSolicitudesController {
   }
 
   @Patch(':id')
+  @Auth()
   @ApiOperation({ summary: 'Actualizar solicitud (ej. estado, notas)' })
   @ApiParam({ name: 'id' })
   update(@Param('id') id: string, @Body() dto: any) {
@@ -64,6 +68,7 @@ export class EmpresasSolicitudesController {
   }
 
   @Delete(':id')
+  @Auth()
   @ApiOperation({ summary: 'Eliminar solicitud' })
   @ApiParam({ name: 'id' })
   remove(@Param('id') id: string) {

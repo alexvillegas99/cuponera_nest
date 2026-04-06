@@ -4,6 +4,8 @@ import { SolicitudCuponera, SolicitudCuponeraSchema } from './schema/solicitud-c
 import { SolicitudCuponeraService } from './solicitud-cuponera.service';
 import { SolicitudCuponeraController } from './solicitud-cuponera.controller';
 import { S3Module } from '../amazon-s3/amazon-s3.module';
+import { CuponModule } from '../cupon/cupon.module';
+import { VersionCuponeraModule } from '../version-cuponera/version-cuponera.module';
 
 @Module({
   imports: [
@@ -11,8 +13,11 @@ import { S3Module } from '../amazon-s3/amazon-s3.module';
       { name: SolicitudCuponera.name, schema: SolicitudCuponeraSchema },
     ]),
     S3Module,
+    CuponModule,
+    VersionCuponeraModule,
   ],
   controllers: [SolicitudCuponeraController],
   providers: [SolicitudCuponeraService],
+  exports: [SolicitudCuponeraService],
 })
 export class SolicitudCuponeraModule {}

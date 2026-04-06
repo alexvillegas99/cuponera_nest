@@ -26,6 +26,10 @@ import { IpDetailsModule } from './ip-details/ip-details.module';
 import { EmpresasSolicitudesModule } from './empresas-solicitudes/empresas-solicitudes.module';
 import { ConfiguracionModule } from './configuracion/configuracion.module';
 import { SolicitudCuponeraModule } from './solicitud-cuponera/solicitud-cuponera.module';
+import { RolesModule } from './roles/roles.module';
+import { AuditoriaModule } from './auditoria/auditoria.module';
+import { PagosModule } from './pagos/pagos.module';
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, load: [configuration] }),
@@ -51,6 +55,9 @@ import { SolicitudCuponeraModule } from './solicitud-cuponera/solicitud-cuponera
     EmpresasSolicitudesModule,
     ConfiguracionModule,
     SolicitudCuponeraModule,
+    RolesModule,
+    AuditoriaModule,
+    PagosModule,
   ],
   controllers: [AppController],
   providers: [AppService],

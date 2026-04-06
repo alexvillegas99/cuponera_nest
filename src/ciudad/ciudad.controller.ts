@@ -9,6 +9,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBody } from '@nestjs/swagger';
+import { Auth } from 'src/auth/decorators/auth.decorator';
 import { CiudadService } from './ciudad.service';
 
 @ApiTags('Ciudades')
@@ -17,6 +18,7 @@ export class CiudadController {
   constructor(private readonly ciudadService: CiudadService) {}
 
   @Post()
+  @Auth()
   @ApiOperation({ summary: 'Crear una ciudad' })
   @ApiBody({
     schema: {
@@ -67,22 +69,26 @@ export class CiudadController {
   }
 
   @Patch(':id')
+  @Auth()
   @ApiOperation({ summary: 'Actualizar ciudad' })
   update(@Param('id') id: string, @Body() body: any) {
     return this.ciudadService.update(id, body);
   }
 
   @Patch(':id/activar')
+  @Auth()
   activar(@Param('id') id: string) {
     return this.ciudadService.activar(id);
   }
 
   @Patch(':id/desactivar')
+  @Auth()
   desactivar(@Param('id') id: string) {
     return this.ciudadService.desactivar(id);
   }
 
   @Delete(':id')
+  @Auth()
   @ApiOperation({ summary: 'Eliminar ciudad' })
   remove(@Param('id') id: string) {
     return this.ciudadService.remove(id);

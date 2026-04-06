@@ -11,11 +11,11 @@ export class VersionCuponera {
   @Prop({ default: true })
   estado: boolean;
 
-  @Prop({ required: true })
-  numeroDeLocales: number; // límite de usos por cupón
-
   @Prop({ required: false })
-  descripcion?: string; // límite de usos por cupón
+  descripcion?: string;
+
+  @Prop({ default: '0.00', trim: true })
+  precio: string;
 
   // Disponible en estas ciudades (refs a Ciudad)
   @Prop({ type: [{ type: Types.ObjectId, ref: 'Ciudad' }], default: [] })

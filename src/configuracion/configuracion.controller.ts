@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Patch } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { Auth } from 'src/auth/decorators/auth.decorator';
 import { ConfiguracionService } from './configuracion.service';
 
 @ApiTags('Configuracion')
@@ -20,6 +21,7 @@ export class ConfiguracionController {
   }
 
   @Patch(':clave')
+  @Auth()
   @ApiOperation({ summary: 'Crear o actualizar una configuración' })
   upsert(
     @Param('clave') clave: string,
@@ -29,6 +31,7 @@ export class ConfiguracionController {
   }
 
   @Delete(':clave')
+  @Auth()
   @ApiOperation({ summary: 'Eliminar una configuración' })
   remove(@Param('clave') clave: string) {
     return this.service.remove(clave);

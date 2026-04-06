@@ -2,11 +2,10 @@ import {
   IsNotEmpty,
   IsString,
   IsBoolean,
-  IsNumber,
-  Min,
   IsOptional,
+  IsArray,
 } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateVersionCuponeraDto {
   @ApiProperty({
@@ -17,19 +16,26 @@ export class CreateVersionCuponeraDto {
   @IsString()
   nombre: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: true,
     description: 'Estado de la edición (activo/inactivo)',
   })
   @IsOptional()
   @IsBoolean()
-  estado: boolean;
+  estado?: boolean;
 
-  @ApiProperty({
-    example: 5,
-    description: 'Número de veces que un cupón puede ser escaneado',
-  })
-  @IsNumber()
-  @Min(1)
-  numeroDeLocales: number;
+  @ApiPropertyOptional({ example: 'Cuponera de verano con descuentos' })
+  @IsOptional()
+  @IsString()
+  descripcion?: string;
+
+  @ApiPropertyOptional({ example: '25.00' })
+  @IsOptional()
+  @IsString()
+  precio?: string;
+
+  @ApiPropertyOptional({ example: ['66d63c8f8baf234aa11e9876'] })
+  @IsOptional()
+  @IsArray()
+  ciudadesDisponibles?: string[];
 }

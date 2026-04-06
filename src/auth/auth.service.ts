@@ -14,6 +14,8 @@ import { DateTimeService } from 'src/common/services/dateTimeService';
 import { JWT_EXPIRES_IN, JWT_SECRET } from 'src/config/config.env';
 import { MailService } from 'src/mail/mail.service';
 import { UsuariosService } from 'src/usuarios/usuarios.service';
+import { RolesService } from 'src/roles/roles.service';
+import { AuditoriaService } from 'src/auditoria/auditoria.service';
 
 @Injectable()
 export class AuthService {
@@ -25,6 +27,8 @@ export class AuthService {
     private readonly clienteService: ClientesService,
     private readonly mailService: MailService,
     private readonly dateService: DateTimeService,
+    private readonly rolesService: RolesService,
+    private readonly auditoria: AuditoriaService,
   ) {}
 
   async loginUsuario(
@@ -34,18 +38,47 @@ export class AuthService {
     dispositivo,
   ) {
     const user: any = await this.usuariosService.findByEmail(correo);
-    console.log(user);
-    if (!user)
-      throw new UnauthorizedException(
-        'Credenciales inválidas. Por favor, inténtalo de nuevo.s',
-      );
-    //VALIDAR ESTADO
-    if (!user.estado) throw new UnauthorizedException('Usuario desactivado, comuniquese con el administrador');
-    const isPasswordValid = await bcrypt.compare(clave, user.clave);
-    if (!isPasswordValid)
+    if (!user) {
+      this.auditoria.registrar({
+        accion: 'auth.login_fallido',
+        modulo: 'auth',
+        descripcion: `Login fallido: email no encontrado (${correo})`,
+        ip,
+        severidad: 'warning',
+      });
       throw new UnauthorizedException(
         'Credenciales inválidas. Por favor, inténtalo de nuevo.',
       );
+    }
+    if (!user.estado) {
+      this.auditoria.registrar({
+        accion: 'auth.login_bloqueado',
+        modulo: 'auth',
+        descripcion: `Login bloqueado: usuario desactivado (${correo})`,
+        usuarioId: user._id?.toString(),
+        usuarioNombre: user.nombre,
+        usuarioEmail: user.email,
+        ip,
+        severidad: 'warning',
+      });
+      throw new UnauthorizedException('Usuario desactivado, comuniquese con el administrador');
+    }
+    const isPasswordValid = await bcrypt.compare(clave, user.clave);
+    if (!isPasswordValid) {
+      this.auditoria.registrar({
+        accion: 'auth.login_fallido',
+        modulo: 'auth',
+        descripcion: `Login fallido: contraseña incorrecta (${correo})`,
+        usuarioId: user._id?.toString(),
+        usuarioNombre: user.nombre,
+        usuarioEmail: user.email,
+        ip,
+        severidad: 'warning',
+      });
+      throw new UnauthorizedException(
+        'Credenciales inválidas. Por favor, inténtalo de nuevo.',
+      );
+    }
 
     const payload = { sub: user._id, kind: 'USUARIO' as const }; // 👈 añade kind
     const accessToken = this.jwtService.sign(payload);
@@ -59,7 +92,22 @@ export class AuthService {
     });
     await this.mailService.enviar(user.email, 'Inicio de sesión', html);
     this.usuariosService.actualizarUltimaConeccion(user._id);
-    return { accessToken, user };
+
+    // Auditoría de login
+    this.auditoria.registrar({
+      accion: 'auth.login',
+      modulo: 'auth',
+      descripcion: `Inicio de sesión: ${user.nombre} (${user.email})`,
+      usuarioId: user._id?.toString(),
+      usuarioNombre: user.nombre,
+      usuarioEmail: user.email,
+      ip: ip,
+      severidad: 'info',
+    });
+
+    // Adjuntar permisos del rol al usuario
+    const permisos = await this.rolesService.getPermisosForUsuario(user);
+    return { accessToken, user: { ...user, permisos } };
   }
 
   async loginCliente(

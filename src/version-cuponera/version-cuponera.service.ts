@@ -8,13 +8,15 @@ import {
   VersionCuponera,
   VersionCuponeraDocument,
 } from './schemas/version-cuponera.schema';
-import { Model, isValidObjectId } from 'mongoose';
+import { Model, isValidObjectId, Types } from 'mongoose';
+import { UsuariosService } from 'src/usuarios/usuarios.service';
 
 @Injectable()
 export class VersionCuponeraService {
   constructor(
     @InjectModel(VersionCuponera.name)
     private readonly versionModel: Model<VersionCuponeraDocument>,
+    private readonly usuariosService: UsuariosService,
   ) {}
 
   /** Convierte refs populadas a array de nombres */
@@ -110,5 +112,17 @@ export class VersionCuponeraService {
       .lean();
 
     return resultados.map((d) => this.toNames(d));
+  }
+
+  /** Retorna los locales disponibles para una versión (empate por ciudades) */
+  async findLocalesByVersion(versionId: string) {
+    const version = await this.findByIdRaw(versionId);
+    const ciudadIds = (version.ciudadesDisponibles || []).map((c: any) =>
+      c.toString(),
+    );
+
+    if (ciudadIds.length === 0) return [];
+
+    return this.usuariosService.findByCiudadesConPromo(ciudadIds);
   }
 }

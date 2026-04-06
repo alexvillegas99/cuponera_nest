@@ -93,7 +93,7 @@ export class CuponService {
     return this._cuponModel
       .findById(cupon._id)
       .populate([
-        { path: 'version', select: 'nombre estado numeroDeLocales' },
+        { path: 'version', select: 'nombre estado precio' },
         { path: 'cliente', select: 'nombres apellidos email identificacion' },
         { path: 'usuarioActivador', select: 'nombre email' },
       ])
@@ -375,7 +375,7 @@ export class CuponService {
 
     const docs = await this._cuponModel
       .find(match)
-      .populate('version', 'nombre numeroDeLocales descripcion')
+      .populate('version', 'nombre descripcion precio')
       .sort({ createdAt: -1 })
       .lean();
 
@@ -451,7 +451,7 @@ export class CuponService {
 
     const cupones = await this._cuponModel
       .find({ cliente: new Types.ObjectId(clienteId) })
-      .populate('version', 'nombre numeroDeLocales') // trae el nombre de la versión
+      .populate('version', 'nombre precio') // trae el nombre de la versión
       .sort({ createdAt: -1 })
       .lean();
 
@@ -499,7 +499,7 @@ export class CuponService {
         .populate({
           path: 'version',
           select:
-            'nombre estado ciudadesDisponibles numeroDeLocales descripcion',
+            'nombre estado ciudadesDisponibles descripcion precio',
           populate: {
             path: 'ciudadesDisponibles',
             select: 'nombre',
@@ -670,8 +670,9 @@ export class CuponService {
           nombre: version.nombre,
           estado: !!version.estado,
           ciudadesDisponibles: ciudadesVersionNombres,
-          numeroDeLocales: version.numeroDeLocales,
+          totalLocales: candidatos.length,
           descripcion: version.descripcion,
+          precio: version.precio,
         },
         candidatosTotal: candidatos.length,
         lugaresScaneados: lugaresScaneados.sort(
@@ -690,5 +691,54 @@ export class CuponService {
       );
       throw err;
     }
+  }
+
+  /**
+   * Busca cupones activos de un cliente que pueden canjearse en un local específico.
+   * Empata por ciudades de la versión vs ciudades del local.
+   * Excluye cupones ya escaneados en ese local.
+   */
+  async findDisponiblesParaLocal(
+    clienteId: string,
+    usuarioId: string,
+  ): Promise<any[]> {
+    // 1) Obtener ciudades del local
+    const local = await this._usuarioModel.findById(usuarioId).lean();
+    if (!local) throw new NotFoundException('Local no encontrado');
+    const ciudadesLocal = (local.ciudades || []).map((c: any) => c.toString());
+
+    if (ciudadesLocal.length === 0) return [];
+
+    // 2) Obtener cupones activos del cliente
+    const cupones = await this._cuponModel
+      .find({
+        cliente: new Types.ObjectId(clienteId),
+        estado: EstadoCupon.ACTIVO,
+      })
+      .populate('version', 'nombre ciudadesDisponibles precio')
+      .lean();
+
+    // 3) Obtener histórico de escaneos de este cliente en este local
+    const historicos = await this._historicoModel
+      .find({ usuario: new Types.ObjectId(usuarioId) })
+      .select('cupon')
+      .lean();
+    const cuponesYaEscaneados = new Set(
+      historicos.map((h: any) => h.cupon.toString()),
+    );
+
+    // 4) Filtrar cupones cuya versión comparte ciudad con el local y no fueron escaneados ahí
+    return cupones.filter((cupon: any) => {
+      if (!cupon.version) return false;
+
+      // Ya escaneado en este local
+      if (cuponesYaEscaneados.has(cupon._id.toString())) return false;
+
+      // Empate por ciudades
+      const ciudadesVersion = (cupon.version.ciudadesDisponibles || []).map(
+        (c: any) => c.toString(),
+      );
+      return ciudadesVersion.some((c: string) => ciudadesLocal.includes(c));
+    });
   }
 }

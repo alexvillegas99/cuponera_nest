@@ -18,6 +18,7 @@ import {
   ApiTags,
   ApiBody,
 } from '@nestjs/swagger';
+import { Auth } from 'src/auth/decorators/auth.decorator';
 import { ClientesService } from './clientes.service';
 
 @ApiTags('Clientes')
@@ -27,6 +28,7 @@ export class ClientesController {
 
 
     @Get('admin')
+  @Auth()
   async findAdmin(
     @Query('q') q?: string,
     @Query('estado') estado?: string,
@@ -107,6 +109,7 @@ export class ClientesController {
     return { available: !exists };
   }
   @Get()
+  @Auth()
   @ApiOperation({
     summary: 'Listar clientes',
     description:
@@ -154,6 +157,7 @@ export class ClientesController {
   }
 
   @Get(':id')
+  @Auth()
   @ApiOperation({
     summary: 'Obtener cliente por ID',
     description: 'Devuelve la información detallada de un cliente por su ID.',

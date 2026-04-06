@@ -144,9 +144,13 @@ export class Usuario {
   @Prop({ required: true, trim: true })
   identificacion: string;
 
-  /** Rol de usuario / User role */
+  /** Rol de usuario (legacy string) / User role (legacy) */
   @Prop({ type: String, enum: RolUsuario, default: RolUsuario.STAFF })
   rol: RolUsuario;
+
+  /** Referencia al rol dinámico / Dynamic role reference */
+  @Prop({ type: Types.ObjectId, ref: 'Rol', default: null })
+  rolRef: Types.ObjectId;
 
   /** Clave hash (bcrypt) / Password hash */
   @Prop({ required: true }) clave: string;

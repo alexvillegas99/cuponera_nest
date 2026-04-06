@@ -21,13 +21,20 @@ import {
   ComercioMiniResponse,
   PromoPrincipalDto,
 } from './dto/comercio-detalle.dto';
+import { Auth } from 'src/auth/decorators/auth.decorator';
+import { GetUser } from 'src/auth/decorators';
+import { AuditoriaService } from 'src/auditoria/auditoria.service';
 
 @ApiTags('Usuarios')
 @Controller('usuarios')
 export class UsuariosController {
-  constructor(private readonly usuariosService: UsuariosService) {}
+  constructor(
+    private readonly usuariosService: UsuariosService,
+    private readonly auditoria: AuditoriaService,
+  ) {}
 
   @Post()
+  @Auth()
   @ApiOperation({ summary: 'Crear usuario' })
   @ApiBody({
     description:
@@ -96,10 +103,21 @@ export class UsuariosController {
       },
     },
   })
-  create(@Body() dto: any) {
-    return this.usuariosService.create(dto);
+  async create(@Body() dto: any, @GetUser() user: any) {
+    const result = await this.usuariosService.create(dto);
+    this.auditoria.registrarDesdeUsuario(user, {
+      accion: 'usuario.crear',
+      modulo: 'usuarios',
+      descripcion: `Usuario creado: ${dto.nombre} (${dto.email})`,
+      recursoId: result._id?.toString(),
+      recursoTipo: 'Usuario',
+      datosNuevos: { nombre: dto.nombre, email: dto.email, rol: dto.rol },
+      severidad: 'critical',
+    });
+    return result;
   }
   @Get('establecimientos')
+  @Auth()
   @ApiOperation({
     summary: 'Listado de establecimientos (admin-local y staff)',
   })
@@ -156,6 +174,7 @@ export class UsuariosController {
   }
 
   @Get()
+  @Auth()
   @ApiOperation({ summary: 'Listar usuarios' })
   @ApiResponse({
     status: 200,
@@ -182,6 +201,7 @@ export class UsuariosController {
   }
 
   @Get('admin-list')
+  @Auth()
   @ApiOperation({ summary: 'Listado administrativo de usuarios con filtros' })
   findAllAdmin(
     @Query('q') q?: string,
@@ -211,11 +231,23 @@ export class UsuariosController {
   }
 
   @Delete(':id')
+  @Auth()
   @ApiOperation({ summary: 'Eliminar usuario' })
   @ApiParam({ name: 'id', required: true })
   @ApiResponse({ status: 200, description: 'Eliminado' })
-  delete(@Param('id') id: string) {
-    return this.usuariosService.delete(id);
+  async delete(@Param('id') id: string, @GetUser() user: any) {
+    const usuario = await this.usuariosService.findById(id);
+    const result = await this.usuariosService.delete(id);
+    this.auditoria.registrarDesdeUsuario(user, {
+      accion: 'usuario.eliminar',
+      modulo: 'usuarios',
+      descripcion: `Usuario eliminado: ${usuario.nombre} (${usuario.email})`,
+      recursoId: id,
+      recursoTipo: 'Usuario',
+      datosAnteriores: { nombre: usuario.nombre, email: usuario.email, rol: usuario.rol },
+      severidad: 'critical',
+    });
+    return result;
   }
 
   @Patch('reset')
@@ -225,6 +257,7 @@ export class UsuariosController {
   }
 
   @Patch(':id')
+  @Auth()
   @ApiOperation({ summary: 'Actualizar usuario' })
   @ApiParam({ name: 'id', required: true })
   @ApiBody({
@@ -245,11 +278,22 @@ export class UsuariosController {
       },
     },
   })
-  update(@Param('id') id: string, @Body() dto: any) {
-    return this.usuariosService.update(id, dto);
+  async update(@Param('id') id: string, @Body() dto: any, @GetUser() user: any) {
+    const result = await this.usuariosService.update(id, dto);
+    this.auditoria.registrarDesdeUsuario(user, {
+      accion: 'usuario.editar',
+      modulo: 'usuarios',
+      descripcion: `Usuario actualizado: ${id}`,
+      recursoId: id,
+      recursoTipo: 'Usuario',
+      datosNuevos: dto,
+      severidad: dto.estado !== undefined ? 'warning' : 'info',
+    });
+    return result;
   }
 
   @Get('users-local/:id')
+  @Auth()
   @ApiOperation({ summary: 'Listar usuarios creados por un responsable' })
   @ApiParam({ name: 'id', description: 'ID del responsable (usuarioCreacion)' })
   findLocalById(@Param('id') id: string) {
@@ -257,6 +301,7 @@ export class UsuariosController {
   }
 
   @Post('users-local/:id')
+  @Auth()
   @ApiOperation({
     summary: 'Crear usuario asignando responsable (usuarioCreacion)',
   })

@@ -5,13 +5,15 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ClientesService } from 'src/clientes/clientes.service';
 import { JWT_SECRET } from 'src/config/config.env';
 import { UsuariosService } from 'src/usuarios/usuarios.service';
+import { RolesService } from 'src/roles/roles.service';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
     private readonly usuarioService: UsuariosService,
     private readonly configService: ConfigService,
-      private readonly clientesService: ClientesService
+    private readonly clientesService: ClientesService,
+    private readonly rolesService: RolesService,
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
@@ -20,19 +22,21 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
- async validate(payload: any) {
+  async validate(payload: any) {
     const { sub: id, kind } = payload as { sub: string; kind?: 'USUARIO' | 'CLIENTE' };
 
     // Por compatibilidad: si no viene kind, asumimos USUARIO
     if (kind === 'CLIENTE') {
       const cliente = await this.clientesService.findById(id).catch(() => null);
       if (!cliente) throw new UnauthorizedException('Token inválido o cliente no encontrado');
-      // Lo que retornas aquí queda en req.user
-      return { ...cliente, kind: 'CLIENTE' };
+      return { ...cliente, kind: 'CLIENTE', permisos: [] };
     } else {
       const usuario = await this.usuarioService.findById(id).catch(() => null);
       if (!usuario) throw new UnauthorizedException('Token inválido o usuario no encontrado');
-      return { ...usuario, kind: 'USUARIO' };
+
+      // Resolver permisos del rol
+      const permisos = await this.rolesService.getPermisosForUsuario(usuario);
+      return { ...usuario, kind: 'USUARIO', permisos };
     }
   }
 }

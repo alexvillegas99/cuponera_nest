@@ -22,6 +22,7 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 import { ActivarCuponDto } from './dto/activar-cupon.dto';
+import { Auth } from 'src/auth/decorators/auth.decorator';
 
 @ApiTags('Cupones')
 @Controller('cupones')
@@ -29,6 +30,7 @@ export class CuponController {
   constructor(private readonly cuponService: CuponService) {}
 
   @Post()
+  @Auth()
   @ApiOperation({ summary: 'Crear un cupón individual' })
   @ApiResponse({ status: 201, description: 'Cupón creado exitosamente' })
   @ApiResponse({ status: 400, description: 'Datos inválidos' })
@@ -38,6 +40,7 @@ export class CuponController {
   }
 
 @Get()
+@Auth()
 @ApiOperation({ summary: 'Listar cupones paginados' })
 @ApiQuery({ name: 'page', required: false, example: 1 })
 @ApiQuery({ name: 'limit', required: false, example: 10 })
@@ -52,6 +55,7 @@ export class CuponController {
 
 
   @Get(':id')
+  @Auth()
   @ApiOperation({ summary: 'Buscar cupón por ID' })
   @ApiResponse({ status: 200, description: 'Cupón encontrado' })
   @ApiResponse({ status: 404, description: 'Cupón no encontrado' })
@@ -71,6 +75,7 @@ export class CuponController {
 
 
   @Delete(':id')
+  @Auth()
   @ApiOperation({ summary: 'Eliminar cupón por ID' })
   @ApiResponse({ status: 200, description: 'Cupón eliminado exitosamente' })
   @ApiResponse({ status: 404, description: 'Cupón no encontrado' })
@@ -80,6 +85,7 @@ export class CuponController {
   }
 
   @Patch('activar')
+  @Auth()
   @ApiOperation({ summary: 'Activar un cupón por versión y secuencial' })
   @ApiResponse({ status: 200, description: 'Cupón activado correctamente' })
   @ApiResponse({ status: 404, description: 'Cupón no encontrado' })
@@ -96,6 +102,7 @@ export class CuponController {
   }
 
   @Patch('desactivar')
+  @Auth()
   @ApiOperation({ summary: 'Desactivar un cupón por versión y secuencial' })
   @ApiResponse({ status: 200, description: 'Cupón desactivado correctamente' })
   @ApiResponse({ status: 404, description: 'Cupón no encontrado' })
@@ -111,6 +118,7 @@ export class CuponController {
   }
 
   @Post('lote')
+  @Auth()
   @ApiOperation({
     summary: 'Generar un lote de cupones para una versión específica',
     description:
@@ -129,6 +137,7 @@ export class CuponController {
   //buscar por id de version
 
   @Get('version/:versionId')
+  @Auth()
   @ApiOperation({ summary: 'Buscar cupones por ID de versión' })
   @ApiResponse({ status: 200, description: 'Lista de cupones para la versión' })
   @ApiResponse({ status: 404, description: 'Versión no encontrada' })
@@ -138,6 +147,7 @@ export class CuponController {
   }
 
   @Get('buscar/fecha')
+  @Auth()
   @ApiOperation({ summary: 'Buscar cupones por rango de fechas' })
   @ApiResponse({ status: 200, description: 'Lista de cupones en el rango' })
   @ApiResponse({ status: 400, description: 'Fechas inválidas' })
@@ -181,6 +191,17 @@ export class CuponController {
       soloActivas !== 'false',
     );
     return list;
+  }
+
+  @Get('clientes/:clienteId/disponibles/:usuarioId')
+  @ApiOperation({
+    summary: 'Cupones disponibles de un cliente para canjear en un local',
+  })
+  findDisponiblesParaLocal(
+    @Param('clienteId') clienteId: string,
+    @Param('usuarioId') usuarioId: string,
+  ) {
+    return this.cuponService.findDisponiblesParaLocal(clienteId, usuarioId);
   }
 
   @Post('clientes/:clienteId/cupones/:cuponId/asignar')
@@ -245,6 +266,7 @@ export class CuponController {
   }
 
   @Get(':id/detalle')
+  @Auth()
 async getDetalle(@Param('id') id: string) {
   return this.cuponService.obtenerDetalleCupon(id);
 }

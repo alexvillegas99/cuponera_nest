@@ -1,15 +1,21 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { SolicitudCuponera, EstadoSolicitud } from './schema/solicitud-cuponera.schema';
 import { AmazonS3Service } from '../amazon-s3/amazon-s3.service';
+import { CuponService } from '../cupon/cupon.service';
+import { VersionCuponeraService } from '../version-cuponera/version-cuponera.service';
 
 @Injectable()
 export class SolicitudCuponeraService {
+  private readonly logger = new Logger(SolicitudCuponeraService.name);
+
   constructor(
     @InjectModel(SolicitudCuponera.name)
     private readonly model: Model<SolicitudCuponera>,
     private readonly s3: AmazonS3Service,
+    private readonly cuponService: CuponService,
+    private readonly versionService: VersionCuponeraService,
   ) {}
 
   async create(dto: any): Promise<SolicitudCuponera> {
@@ -78,13 +84,60 @@ export class SolicitudCuponeraService {
     id: string,
     estado: EstadoSolicitud,
     notaAdmin?: string,
-  ): Promise<SolicitudCuponera> {
+  ): Promise<any> {
     const doc = await this.model.findByIdAndUpdate(
       id,
       { estado, ...(notaAdmin && { notaAdmin }) },
       { new: true },
     );
     if (!doc) throw new NotFoundException('Solicitud no encontrada');
-    return doc;
+
+    // Si se aprueba, crear cupón automáticamente
+    if (estado === EstadoSolicitud.APROBADO) {
+      try {
+        const cupon = await this.crearCuponDesdeAprobacion(doc);
+        return { solicitud: doc, cuponCreado: cupon };
+      } catch (error) {
+        this.logger.error(
+          `Error al crear cupón automático para solicitud ${id}: ${error.message}`,
+        );
+        return { solicitud: doc, cuponCreado: null, error: error.message };
+      }
+    }
+
+    return { solicitud: doc };
+  }
+
+  /**
+   * Busca la versión de cuponera por nombre y crea un cupón activo
+   * asignado al cliente de la solicitud.
+   */
+  private async crearCuponDesdeAprobacion(solicitud: SolicitudCuponera) {
+    // Buscar versión por nombre exacto (case-insensitive)
+    const versiones = await this.versionService.buscarPorNombre(
+      solicitud.cuponeraNombre,
+      'true',
+    );
+
+    if (!versiones || versiones.length === 0) {
+      throw new Error(
+        `No se encontró versión de cuponera activa con nombre "${solicitud.cuponeraNombre}"`,
+      );
+    }
+
+    // Tomar la primera coincidencia
+    const version = versiones[0];
+
+    // Crear cupón activo asignado al cliente
+    const cupon = await this.cuponService.create({
+      version: version._id,
+      cliente: solicitud.cliente,
+    });
+
+    this.logger.log(
+      `Cupón ${cupon._id} creado automáticamente para solicitud ${solicitud._id}`,
+    );
+
+    return cupon;
   }
 }

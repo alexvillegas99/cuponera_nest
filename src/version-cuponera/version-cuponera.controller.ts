@@ -18,6 +18,7 @@ import {
 } from '@nestjs/swagger';
 import { VersionCuponeraService } from './version-cuponera.service';
 import { CreateVersionCuponeraDto } from './dto/create-version-cuponera.dto';
+import { Auth } from 'src/auth/decorators/auth.decorator';
 
 @ApiTags('Versiones Cuponera')
 @Controller('versiones')
@@ -25,6 +26,7 @@ export class VersionCuponeraController {
   constructor(private readonly versionService: VersionCuponeraService) {}
 
   @Post()
+  @Auth()
   @ApiOperation({ summary: 'Crear una versión de cuponera' })
   @ApiBody({
     description: 'Datos para crear la versión (con ciudades disponibles opcionales)',
@@ -32,7 +34,7 @@ export class VersionCuponeraController {
       example: {
         nombre: 'Enjoy 2025 – Q4',
         estado: true,
-        numeroDeLocales: 120,
+        precio: '25.00',
         ciudadesDisponibles: [
           '66d63c8f8baf234aa11e9876',
           '66d63c8f8baf234aa11e9880'
@@ -48,7 +50,7 @@ export class VersionCuponeraController {
         _id: '66d63c8f8baf234aa11ea111',
         nombre: 'Enjoy 2025 – Q4',
         estado: true,
-        numeroDeLocales: 120,
+        precio: '25.00',
         ciudadesDisponibles: ['Ambato', 'Quito'], // ← nombres
         createdAt: '2025-09-02T12:00:00.000Z',
         updatedAt: '2025-09-02T12:00:00.000Z',
@@ -60,6 +62,7 @@ export class VersionCuponeraController {
   }
 
   @Get()
+  @Auth()
   @ApiOperation({ summary: 'Listar versiones de cuponera' })
   @ApiResponse({
     status: 200,
@@ -70,7 +73,7 @@ export class VersionCuponeraController {
           _id: '66d63c8f8baf234aa11ea111',
           nombre: 'Enjoy 2025 – Q4',
           estado: true,
-          numeroDeLocales: 120,
+          precio: '25.00',
           ciudadesDisponibles: ['Ambato', 'Quito'],
         },
       ],
@@ -81,6 +84,7 @@ export class VersionCuponeraController {
   }
 
   @Get(':id')
+  @Auth()
   @ApiOperation({ summary: 'Obtener versión por ID' })
   @ApiParam({ name: 'id', required: true })
   @ApiResponse({
@@ -91,7 +95,7 @@ export class VersionCuponeraController {
         _id: '66d63c8f8baf234aa11ea111',
         nombre: 'Enjoy 2025 – Q4',
         estado: true,
-        numeroDeLocales: 120,
+        precio: '25.00',
         ciudadesDisponibles: ['Ambato', 'Quito'],
       },
     },
@@ -101,6 +105,7 @@ export class VersionCuponeraController {
   }
 
   @Delete(':id')
+  @Auth()
   @ApiOperation({ summary: 'Eliminar versión' })
   @ApiParam({ name: 'id', required: true })
   delete(@Param('id') id: string) {
@@ -108,6 +113,7 @@ export class VersionCuponeraController {
   }
 
   @Patch(':id')
+  @Auth()
   @ApiOperation({ summary: 'Actualizar versión' })
   @ApiParam({ name: 'id', required: true })
   @ApiBody({
@@ -115,7 +121,7 @@ export class VersionCuponeraController {
     schema: {
       example: {
         nombre: 'Enjoy 2025 – Q4 (actualizado)',
-        numeroDeLocales: 140,
+        precio: '30.00',
         ciudadesDisponibles: ['66d63c8f8baf234aa11e9876'], // ids
         estado: false,
       },
@@ -126,6 +132,7 @@ export class VersionCuponeraController {
   }
 
   @Patch(':id/desactivar')
+  @Auth()
   @ApiOperation({ summary: 'Desactivar versión (estado=false)' })
   @ApiParam({ name: 'id', required: true })
   desactivar(@Param('id') id: string) {
@@ -133,13 +140,22 @@ export class VersionCuponeraController {
   }
 
   @Patch(':id/activar')
+  @Auth()
   @ApiOperation({ summary: 'Activar versión (estado=true)' })
   @ApiParam({ name: 'id', required: true })
   activar(@Param('id') id: string) {
     return this.versionService.update(id, { estado: true } as any);
   }
 
+  @Get(':id/locales')
+  @ApiOperation({ summary: 'Locales disponibles para esta versión (empate por ciudades)' })
+  @ApiParam({ name: 'id', required: true })
+  findLocales(@Param('id') id: string) {
+    return this.versionService.findLocalesByVersion(id);
+  }
+
     @Get('buscar/nombre')
+  @Auth()
   @ApiOperation({ summary: 'Buscar versiones por nombre (búsqueda parcial)' })
   @ApiQuery({
     name: 'nombre',
@@ -162,14 +178,14 @@ export class VersionCuponeraController {
           _id: '66d63c8f8baf234aa11ea111',
           nombre: 'Enjoy 2025 – Q4',
           estado: true,
-          numeroDeLocales: 120,
+          precio: '25.00',
           ciudadesDisponibles: ['Ambato', 'Quito'],
         },
         {
           _id: '66d63c8f8baf234aa11ea112',
           nombre: 'Enjoy 2025 – Q3',
           estado: true,
-          numeroDeLocales: 100,
+          precio: '15.00',
           ciudadesDisponibles: ['Guayaquil'],
         },
       ],
