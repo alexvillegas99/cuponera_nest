@@ -6,6 +6,8 @@ import { SolicitudCuponeraController } from './solicitud-cuponera.controller';
 import { S3Module } from '../amazon-s3/amazon-s3.module';
 import { CuponModule } from '../cupon/cupon.module';
 import { VersionCuponeraModule } from '../version-cuponera/version-cuponera.module';
+import { NotificacionesModule } from '../notificaciones/notificaciones.module';
+import { ClientesModule } from '../clientes/clientes.module';
 
 @Module({
   imports: [
@@ -15,6 +17,8 @@ import { VersionCuponeraModule } from '../version-cuponera/version-cuponera.modu
     S3Module,
     CuponModule,
     VersionCuponeraModule,
+    NotificacionesModule,
+    ClientesModule,
   ],
   controllers: [SolicitudCuponeraController],
   providers: [SolicitudCuponeraService],

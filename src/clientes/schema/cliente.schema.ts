@@ -55,6 +55,9 @@
 
     @Prop({ type: Boolean, default: true, index: true })
     estado: boolean;
+
+    @Prop({ type: String })
+    fcmToken?: string;
   }
 
   export const ClienteSchema = SchemaFactory.createForClass(Cliente);

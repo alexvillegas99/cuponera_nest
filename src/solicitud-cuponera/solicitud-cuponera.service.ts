@@ -5,6 +5,8 @@ import { SolicitudCuponera, EstadoSolicitud } from './schema/solicitud-cuponera.
 import { AmazonS3Service } from '../amazon-s3/amazon-s3.service';
 import { CuponService } from '../cupon/cupon.service';
 import { VersionCuponeraService } from '../version-cuponera/version-cuponera.service';
+import { NotificacionesService } from '../notificaciones/notificaciones.service';
+import { ClientesService } from '../clientes/clientes.service';
 
 @Injectable()
 export class SolicitudCuponeraService {
@@ -16,6 +18,8 @@ export class SolicitudCuponeraService {
     private readonly s3: AmazonS3Service,
     private readonly cuponService: CuponService,
     private readonly versionService: VersionCuponeraService,
+    private readonly notificacionesService: NotificacionesService,
+    private readonly clientesService: ClientesService,
   ) {}
 
   async create(dto: any): Promise<SolicitudCuponera> {
@@ -91,6 +95,27 @@ export class SolicitudCuponeraService {
       { new: true },
     );
     if (!doc) throw new NotFoundException('Solicitud no encontrada');
+
+    // Enviar notificación al cliente
+    const clienteId = (doc.cliente as any)?._id?.toString() ?? doc.cliente?.toString();
+    if (clienteId) {
+      const fcmToken = await this.clientesService.obtenerFcmToken(clienteId);
+      if (estado === EstadoSolicitud.APROBADO) {
+        await this.notificacionesService.enviarAToken(
+          fcmToken,
+          '¡Solicitud aprobada! 🎉',
+          `Tu cuponera "${doc.cuponeraNombre}" fue aprobada. ¡Ya puedes usarla!`,
+        );
+      } else if (estado === EstadoSolicitud.RECHAZADO) {
+        await this.notificacionesService.enviarAToken(
+          fcmToken,
+          'Solicitud no aprobada',
+          notaAdmin
+            ? `Tu solicitud de "${doc.cuponeraNombre}" no fue aprobada: ${notaAdmin}`
+            : `Tu solicitud de "${doc.cuponeraNombre}" no fue aprobada.`,
+        );
+      }
+    }
 
     // Si se aprueba, crear cupón automáticamente
     if (estado === EstadoSolicitud.APROBADO) {

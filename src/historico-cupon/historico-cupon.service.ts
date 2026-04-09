@@ -16,6 +16,8 @@ import { CuponService } from 'src/cupon/cupon.service';
 import { VersionCuponeraService } from 'src/version-cuponera/version-cuponera.service';
 import { EstadoCupon } from 'src/cupon/enum/estados_cupon';
 import { UsuariosService } from 'src/usuarios/usuarios.service';
+import { NotificacionesService } from 'src/notificaciones/notificaciones.service';
+import { ClientesService } from 'src/clientes/clientes.service';
 
 @Injectable()
 export class HistoricoCuponService {
@@ -26,6 +28,8 @@ export class HistoricoCuponService {
         private readonly cuponService: CuponService,
     private readonly versionService: VersionCuponeraService,
     private readonly _usuariosModel: UsuariosService,
+    private readonly notificacionesService: NotificacionesService,
+    private readonly clientesService: ClientesService,
   ) {}
 
   // ===================== Helpers =====================
@@ -166,6 +170,44 @@ export class HistoricoCuponService {
     });
 
     await this.cuponService.incrementarEscaneos(dto.cupon);
+
+    // 6) Notificaciones: cliente, scanner y dueño del local
+    try {
+      const nombreCuponera = (cupon.version as any)?.nombre ?? 'la cuponera';
+
+      // Al cliente dueño del cupón
+      const clienteId = cupon.cliente?.toString();
+      if (clienteId) {
+        const token = await this.clientesService.obtenerFcmToken(clienteId);
+        await this.notificacionesService.enviarAToken(
+          token,
+          '¡Cupón canjeado! ✅',
+          `Acabas de usar un beneficio de "${nombreCuponera}". ¡Gracias por tu preferencia!`,
+        );
+      }
+
+      // Al usuario que escaneó (scanner)
+      const scannerToken = await this._usuariosModel.obtenerFcmToken(dto.usuario);
+      await this.notificacionesService.enviarAToken(
+        scannerToken,
+        'Escaneo registrado ✅',
+        `Cupón #${cupon.secuencial} de "${nombreCuponera}" fue canjeado exitosamente.`,
+      );
+
+      // Al admin-local (resuelto correctamente: si scanner es staff → su jefe, si ya es admin-local → él mismo)
+      const adminLocal = await this._usuariosModel.getAdminLocalRaw(dto.usuario);
+      const adminLocalId = adminLocal?._id?.toString();
+      if (adminLocalId && adminLocalId !== dto.usuario) {
+        const adminToken = await this._usuariosModel.obtenerFcmToken(adminLocalId);
+        await this.notificacionesService.enviarAToken(
+          adminToken,
+          'Canje en tu local 🏪',
+          `Se canjeó el cupón #${cupon.secuencial} de "${nombreCuponera}" en tu establecimiento.`,
+        );
+      }
+    } catch (e) {
+      // No interrumpir el flujo si falla la notificación
+    }
 
     return historico;
   }

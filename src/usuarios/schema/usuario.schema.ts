@@ -187,9 +187,11 @@ export class Usuario {
   @Prop({ default: 0 })
   totalComentarios: number;
 
-  @Prop({ trim: true }) telefono?: string; // 👈 nuevo (opcional)
+  @Prop({ trim: true }) telefono?: string;
 
   @Prop() ultimaConexion?: Date;
+
+  @Prop({ type: String }) fcmToken?: string;
 }
 
 export const UsuarioSchema = SchemaFactory.createForClass(Usuario);

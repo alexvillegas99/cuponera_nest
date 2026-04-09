@@ -10,6 +10,8 @@ import { Pago, PagoDocument } from './schema/pago.schema';
 import { ConfiguracionService } from 'src/configuracion/configuracion.service';
 import { SolicitudCuponeraService } from 'src/solicitud-cuponera/solicitud-cuponera.service';
 import { EstadoSolicitud } from 'src/solicitud-cuponera/schema/solicitud-cuponera.schema';
+import { NotificacionesService } from 'src/notificaciones/notificaciones.service';
+import { ClientesService } from 'src/clientes/clientes.service';
 import axios from 'axios';
 
 @Injectable()
@@ -20,6 +22,8 @@ export class PagosService {
     @InjectModel(Pago.name) private readonly pagoModel: Model<PagoDocument>,
     private readonly configService: ConfiguracionService,
     private readonly solicitudService: SolicitudCuponeraService,
+    private readonly notificacionesService: NotificacionesService,
+    private readonly clientesService: ClientesService,
   ) {}
 
   /**
@@ -28,63 +32,158 @@ export class PagosService {
   private async getPayPhoneConfig() {
     const token = await this.configService.findByClave('payphone_token');
     const activo = await this.configService.findByClave('payphone_activo');
+    const storeId = await this.configService.findByClave('payphone_store_id');
 
     return {
       token: token?.valor ?? '',
       activo: activo?.valor === 'true',
+      storeId: storeId?.valor ?? '',
     };
   }
 
   /**
-   * Crea una transacción de pago en PayPhone
+   * Inicia un pago PayPhone: crea el registro y retorna la URL del formulario web
    */
-  async crearTransaccion(data: {
+  async iniciarPayPhone(data: {
     clienteId: string;
     nombreCliente: string;
     emailCliente: string;
     telefonoCliente?: string;
     cuponeraNombre: string;
     cuponeraPrecio: string;
-    responseUrl: string;
-    cancellationUrl: string;
-  }) {
+  }): Promise<{ formularioUrl: string; clientTransactionId: string }> {
+    this.logger.log(`[PayPhone] Iniciando — cliente: ${data.clienteId}, cuponera: ${data.cuponeraNombre}, precio: ${data.cuponeraPrecio}`);
+
     const config = await this.getPayPhoneConfig();
     if (!config.activo || !config.token) {
-      throw new BadRequestException('PayPhone no está configurado o no está activo');
+      throw new BadRequestException('PayPhone no está activo o no tiene token configurado');
+    }
+    if (!config.storeId) {
+      throw new BadRequestException('Falta el StoreID de PayPhone en la configuración');
     }
 
-    const monto = Math.round(parseFloat(data.cuponeraPrecio) * 100); // en centavos
+    const monto = Math.round(parseFloat(data.cuponeraPrecio) * 100);
     if (isNaN(monto) || monto <= 0) {
       throw new BadRequestException('Precio de cuponera inválido');
     }
 
-    // Crear registro local
     const clientTransactionId = `ENJ-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-    const pago = await this.pagoModel.create({
+    await this.pagoModel.create({
       cliente: new Types.ObjectId(data.clienteId),
       cuponeraNombre: data.cuponeraNombre,
       cuponeraPrecio: data.cuponeraPrecio,
       monto: monto / 100,
       clientTransactionId,
       status: 'PENDIENTE',
+      metodo: 'payphone',
     });
 
-    // Llamar a PayPhone API
+    const backendUrl = process.env.BACKEND_PUBLIC_URL ?? '';
+    const formularioUrl = `${backendUrl}/api/pagos/payphone/formulario?txn=${clientTransactionId}`;
+
+    this.logger.log(`[PayPhone] Formulario URL generada: ${formularioUrl}`);
+    return { formularioUrl, clientTransactionId };
+  }
+
+  /**
+   * Genera la página HTML con el widget de PayPhone (llamada desde el WebView)
+   */
+  async generarHtmlFormulario(clientTransactionId: string): Promise<string> {
+    const pago = await this.pagoModel.findOne({ clientTransactionId }).lean();
+    if (!pago) throw new BadRequestException('Transacción no encontrada');
+
+    const config = await this.getPayPhoneConfig();
+    const monto = Math.round(pago.monto * 100);
+    const backendUrl = process.env.BACKEND_PUBLIC_URL ?? '';
+    const responseUrl = `${backendUrl}/api/pagos/payphone/resultado`;
+
+    let phoneExtra = '';
+    if ((pago as any).telefono) {
+      let phone = (pago as any).telefono.replace(/[\s\-().]/g, '');
+      if (phone.startsWith('09') && phone.length === 10) phone = '+593' + phone.slice(1);
+      else if (phone.startsWith('593')) phone = '+' + phone;
+      if (phone.startsWith('+593')) {
+        phoneExtra = `phoneNumber: '${phone}',`;
+      }
+    }
+
+    return `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pago seguro — Enjoy</title>
+  <link rel="stylesheet" href="https://cdn.payphonetodoesposible.com/box/v1.1/payphone-payment-box.css">
+  <script type="module" src="https://cdn.payphonetodoesposible.com/box/v1.1/payphone-payment-box.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #EFF2F7; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; }
+    .header { background: #152A47; padding: 16px 20px; display: flex; align-items: center; gap: 12px; }
+    .header h1 { color: #FF9F1C; font-size: 20px; font-weight: 800; letter-spacing: 1px; }
+    .header span { color: rgba(255,255,255,0.6); font-size: 13px; }
+    .content { padding: 24px 16px; max-width: 480px; margin: 0 auto; }
+    .card { background: white; border-radius: 16px; padding: 20px; box-shadow: 0 2px 12px rgba(0,0,0,0.06); margin-bottom: 16px; }
+    .card-title { font-size: 13px; color: #7A869A; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+    .cuponera-nombre { font-size: 18px; font-weight: 800; color: #152A47; }
+    .precio { font-size: 28px; font-weight: 900; color: #FF9F1C; }
+    .seguro { display: flex; align-items: center; gap: 6px; color: #7A869A; font-size: 12px; margin-top: 16px; justify-content: center; }
+    #pp-button { margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <h1>ENJOY</h1>
+      <span>Pago seguro</span>
+    </div>
+  </div>
+  <div class="content">
+    <div class="card">
+      <div class="card-title">Cuponera seleccionada</div>
+      <div class="cuponera-nombre">${pago.cuponeraNombre}</div>
+      <div class="precio">$${pago.monto.toFixed(2)}</div>
+    </div>
+    <div class="card">
+      <div id="pp-button"></div>
+      <div class="seguro">🔒 Pago procesado de forma segura por PayPhone</div>
+    </div>
+  </div>
+  <script>
+    window.addEventListener('DOMContentLoaded', () => {
+      new PayphoneButtonBox({
+        token: '${config.token}',
+        clientTransactionId: '${clientTransactionId}',
+        amount: ${monto},
+        amountWithoutTax: ${monto},
+        tax: 0,
+        storeId: '${config.storeId}',
+        currency: 'USD',
+        reference: 'Cuponera: ${pago.cuponeraNombre}',
+        responseUrl: '${responseUrl}',
+        lang: 'es',
+        ${phoneExtra}
+      }).render('pp-button');
+    });
+  </script>
+</body>
+</html>`;
+  }
+
+  /**
+   * Confirma el pago con PayPhone y retorna HTML de resultado
+   */
+  async confirmarPagoPayPhone(id: string, clientTransactionId: string): Promise<string> {
+    this.logger.log(`[PayPhone] Confirmando — id: ${id}, txn: ${clientTransactionId}`);
+    const config = await this.getPayPhoneConfig();
+
+    let aprobado = false;
+    let mensaje = '';
+
     try {
-      const response = await axios.post(
-        'https://pay.payphonetodoesposible.com/api/v2/transaction/Create',
-        {
-          amount: monto,
-          amountWithoutTax: monto,
-          clientTransactionId,
-          responseUrl: data.responseUrl,
-          cancellationUrl: data.cancellationUrl,
-          email: data.emailCliente,
-          phoneNumber: data.telefonoCliente || '',
-          documentId: '',
-          reference: `Cuponera: ${data.cuponeraNombre}`,
-        },
+      const resp = await axios.post(
+        'https://pay.payphonetodoesposible.com/api/button/V2/Confirm',
+        { id: parseInt(id, 10), clientTxId: clientTransactionId },
         {
           headers: {
             Authorization: `Bearer ${config.token}`,
@@ -93,26 +192,65 @@ export class PagosService {
         },
       );
 
-      const payPhoneData = response.data;
+      const data = resp.data;
+      this.logger.log(`[PayPhone] Confirm response: ${JSON.stringify(data)}`);
 
-      // Actualizar pago con transactionId de PayPhone
-      await this.pagoModel.findByIdAndUpdate(pago._id, {
-        transactionId: payPhoneData.transactionId?.toString() ?? null,
-      });
+      aprobado = data.statusCode === 3;
+      mensaje = aprobado ? 'Pago aprobado' : (data.message ?? 'Pago no aprobado');
 
-      return {
-        pagoId: pago._id,
-        paymentUrl: payPhoneData.payWithCard ?? payPhoneData.paymentUrl,
-        transactionId: payPhoneData.transactionId,
-        clientTransactionId,
-      };
+      const pago = await this.pagoModel.findOne({ clientTransactionId });
+      if (pago) {
+        pago.statusCode = data.statusCode;
+        pago.status = aprobado ? 'APROBADO' : 'RECHAZADO';
+        pago.transactionId = data.transactionId?.toString() ?? pago.transactionId;
+        pago.fechaPago = new Date();
+        await pago.save();
+
+        if (aprobado) {
+          await this.crearCuponDesdePago(pago, `PayPhone #${data.transactionId}`);
+        } else {
+          const clienteId = pago.cliente?.toString();
+          if (clienteId) {
+            const fcmToken = await this.clientesService.obtenerFcmToken(clienteId);
+            await this.notificacionesService.enviarAToken(
+              fcmToken,
+              'Pago no completado',
+              `Tu pago por "${pago.cuponeraNombre}" no fue aprobado. Intenta de nuevo.`,
+            );
+          }
+        }
+      }
     } catch (error) {
-      this.logger.error(`Error PayPhone: ${error.response?.data ?? error.message}`);
-      await this.pagoModel.findByIdAndUpdate(pago._id, { status: 'ERROR' });
-      throw new BadRequestException(
-        `Error al crear transacción: ${error.response?.data?.message ?? error.message}`,
-      );
+      this.logger.error(`[PayPhone] Error al confirmar: ${JSON.stringify(error.response?.data ?? error.message)}`);
+      mensaje = 'No se pudo verificar el pago';
     }
+
+    const status = aprobado ? 'ok' : 'error';
+    const redirectUrl = `enjoy://payphone-resultado?status=${status}&txn=${clientTransactionId}`;
+
+    return `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${aprobado ? 'Pago exitoso' : 'Pago no completado'} — Enjoy</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #EFF2F7; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; }
+    .icon { font-size: 64px; margin-bottom: 20px; }
+    .title { font-size: 22px; font-weight: 800; color: #152A47; margin-bottom: 8px; text-align: center; }
+    .sub { font-size: 14px; color: #7A869A; text-align: center; margin-bottom: 32px; }
+    .btn { background: #FF9F1C; color: white; border: none; padding: 14px 32px; border-radius: 12px; font-size: 16px; font-weight: 700; cursor: pointer; width: 100%; max-width: 320px; }
+  </style>
+</head>
+<body>
+  <div class="icon">${aprobado ? '✅' : '❌'}</div>
+  <div class="title">${aprobado ? '¡Pago exitoso!' : 'Pago no completado'}</div>
+  <div class="sub">${aprobado ? 'Tu cuponera ha sido activada. Vuelve a la app.' : mensaje}</div>
+  <button class="btn" onclick="window.location.href='${redirectUrl}'">Volver a la app</button>
+  <script>setTimeout(() => { window.location.href = '${redirectUrl}'; }, 3000);</script>
+</body>
+</html>`;
   }
 
   /**
@@ -196,15 +334,27 @@ export class PagosService {
     secret: string;
     baseUrl: string;
   }): Promise<string> {
-    const resp = await axios.post(
-      `${config.baseUrl}/v1/oauth2/token`,
-      'grant_type=client_credentials',
-      {
-        auth: { username: config.clientId, password: config.secret },
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      },
-    );
-    return resp.data.access_token;
+    try {
+      const resp = await axios.post(
+        `${config.baseUrl}/v1/oauth2/token`,
+        'grant_type=client_credentials',
+        {
+          auth: { username: config.clientId, password: config.secret },
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        },
+      );
+      return resp.data.access_token;
+    } catch (error) {
+      const status = error.response?.status;
+      if (status === 401) {
+        throw new BadRequestException(
+          'Las credenciales de PayPal son inválidas. Verifica el Client ID y Secret en la configuración.',
+        );
+      }
+      throw new BadRequestException(
+        `No se pudo conectar con PayPal: ${error.message}`,
+      );
+    }
   }
 
   /** Crear orden de pago en PayPal */
@@ -217,7 +367,11 @@ export class PagosService {
     returnUrl: string;
     cancelUrl: string;
   }) {
+    this.logger.log(`[PayPal] Iniciando orden — cliente: ${data.clienteId}, cuponera: ${data.cuponeraNombre}, precio: ${data.cuponeraPrecio}`);
+
     const config = await this.getPayPalConfig();
+    this.logger.log(`[PayPal] Config — activo: ${config.activo}, sandbox: ${config.sandbox}, clientId: ${config.clientId ? '***' + config.clientId.slice(-6) : 'VACÍO'}, secret: ${config.secret ? 'SET' : 'VACÍO'}`);
+
     if (!config.activo || !config.clientId || !config.secret) {
       throw new BadRequestException('PayPal no está configurado o no está activo');
     }
@@ -239,31 +393,37 @@ export class PagosService {
       status: 'PENDIENTE',
       metodo: 'paypal',
     });
+    this.logger.log(`[PayPal] Pago local creado — id: ${pago._id}, txn: ${clientTransactionId}`);
 
     try {
+      this.logger.log(`[PayPal] Obteniendo access token desde: ${config.baseUrl}`);
       const accessToken = await this.getPayPalAccessToken(config);
+      this.logger.log(`[PayPal] Access token obtenido OK`);
+
+      const orderBody = {
+        intent: 'CAPTURE',
+        purchase_units: [
+          {
+            reference_id: clientTransactionId,
+            description: `Cuponera: ${data.cuponeraNombre}`,
+            amount: {
+              currency_code: 'USD',
+              value: monto.toFixed(2),
+            },
+          },
+        ],
+        application_context: {
+          return_url: data.returnUrl,
+          cancel_url: data.cancelUrl,
+          brand_name: 'Enjoy',
+          user_action: 'PAY_NOW',
+        },
+      };
+      this.logger.log(`[PayPal] Creando orden → ${JSON.stringify(orderBody)}`);
 
       const orderResp = await axios.post(
         `${config.baseUrl}/v2/checkout/orders`,
-        {
-          intent: 'CAPTURE',
-          purchase_units: [
-            {
-              reference_id: clientTransactionId,
-              description: `Cuponera: ${data.cuponeraNombre}`,
-              amount: {
-                currency_code: 'USD',
-                value: monto.toFixed(2),
-              },
-            },
-          ],
-          application_context: {
-            return_url: data.returnUrl,
-            cancel_url: data.cancelUrl,
-            brand_name: 'Enjoy',
-            user_action: 'PAY_NOW',
-          },
-        },
+        orderBody,
         {
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -274,6 +434,7 @@ export class PagosService {
 
       const order = orderResp.data;
       const approveLink = order.links?.find((l: any) => l.rel === 'approve');
+      this.logger.log(`[PayPal] Orden creada OK — id: ${order.id}, approveUrl: ${approveLink?.href}`);
 
       await this.pagoModel.findByIdAndUpdate(pago._id, {
         transactionId: order.id,
@@ -286,10 +447,16 @@ export class PagosService {
         clientTransactionId,
       };
     } catch (error) {
-      this.logger.error(`Error PayPal: ${error.response?.data ?? error.message}`);
+      // Si ya es un BadRequestException (ej: credenciales inválidas), relanzar directo
+      if (error instanceof BadRequestException) {
+        await this.pagoModel.findByIdAndUpdate(pago._id, { status: 'ERROR' });
+        throw error;
+      }
+      this.logger.error(`[PayPal] Error status: ${error.response?.status}`);
+      this.logger.error(`[PayPal] Error body: ${JSON.stringify(error.response?.data ?? error.message)}`);
       await this.pagoModel.findByIdAndUpdate(pago._id, { status: 'ERROR' });
       throw new BadRequestException(
-        `Error al crear orden PayPal: ${JSON.stringify(error.response?.data?.details ?? error.message)}`,
+        'No se pudo crear la orden de pago. Intenta de nuevo.',
       );
     }
   }
@@ -386,6 +553,17 @@ export class PagosService {
 
       pago.solicitudId = solicitud._id;
       await pago.save();
+
+      // Notificación pago exitoso
+      const clienteId = pago.cliente?.toString();
+      if (clienteId) {
+        const fcmToken = await this.clientesService.obtenerFcmToken(clienteId);
+        await this.notificacionesService.enviarAToken(
+          fcmToken,
+          '¡Pago exitoso! 🎉',
+          `Tu cuponera "${pago.cuponeraNombre}" está lista para usar.`,
+        );
+      }
     } catch (error) {
       this.logger.error(`Error creando cupón post-pago: ${error.message}`);
     }

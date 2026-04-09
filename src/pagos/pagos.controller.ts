@@ -1,5 +1,6 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Res } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Response } from 'express';
 import { PagosService } from './pagos.service';
 import { Auth } from 'src/auth/decorators/auth.decorator';
 
@@ -23,15 +24,35 @@ export class PagosController {
   }
 
   // ── PayPhone ──
-  @Post('payphone/crear')
+  @Post('payphone/iniciar')
   @Auth()
-  @ApiOperation({ summary: 'Crear transacción PayPhone' })
-  crearTransaccionPayPhone(@Body() body: any) {
-    return this.pagosService.crearTransaccion(body);
+  @ApiOperation({ summary: 'Inicia pago PayPhone — retorna URL del formulario web' })
+  iniciarPayPhone(@Body() body: any) {
+    return this.pagosService.iniciarPayPhone(body);
+  }
+
+  @Get('payphone/formulario')
+  @ApiOperation({ summary: 'Página HTML con el widget de PayPhone (pública)' })
+  async formularioPayPhone(@Query('txn') txn: string, @Res() res: Response) {
+    const html = await this.pagosService.generarHtmlFormulario(txn);
+    res.setHeader('Content-Type', 'text/html');
+    res.send(html);
+  }
+
+  @Get('payphone/resultado')
+  @ApiOperation({ summary: 'Resultado del pago — PayPhone redirige aquí (público)' })
+  async resultadoPayPhone(
+    @Query('id') id: string,
+    @Query('clientTransactionId') clientTransactionId: string,
+    @Res() res: Response,
+  ) {
+    const html = await this.pagosService.confirmarPagoPayPhone(id, clientTransactionId);
+    res.setHeader('Content-Type', 'text/html');
+    res.send(html);
   }
 
   @Post('payphone/webhook')
-  @ApiOperation({ summary: 'Webhook de PayPhone (público)' })
+  @ApiOperation({ summary: 'Webhook legado de PayPhone (público)' })
   webhookPayPhone(@Body() body: any) {
     return this.pagosService.procesarWebhook(body);
   }

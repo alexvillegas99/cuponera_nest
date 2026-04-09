@@ -48,6 +48,16 @@ export class ClientesService {
     private readonly favoritoModel: Model<FavoriteDocument>,
   ) {}
   private readonly logger = new Logger(ClientesService.name);
+
+  async actualizarFcmToken(clienteId: string, fcmToken: string): Promise<void> {
+    await this.clienteModel.findByIdAndUpdate(clienteId, { fcmToken });
+  }
+
+  async obtenerFcmToken(clienteId: string): Promise<string | null> {
+    const cliente = await this.clienteModel.findById(clienteId).select('fcmToken').lean();
+    return (cliente as any)?.fcmToken ?? null;
+  }
+
   async create(dto: any) {
     const existsEmail = await this.clienteModel.exists({
       email: dto.email.toLowerCase(),

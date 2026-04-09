@@ -23,7 +23,7 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(
     AppModule,
     new ExpressAdapter(server),
-  );
+  ); 
   //tamaño de json
   app.use(json({ limit: '150mb' }));
   app.use(urlencoded({ extended: true, limit: '150mb' }));

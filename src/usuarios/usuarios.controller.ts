@@ -340,6 +340,12 @@ export class UsuariosController {
     return this.usuariosService.actualizarContraseniaRecuperacion(
       dto.email,
       dto.password,
-    );  
+    );
+  }
+
+  @Patch(':id/fcm-token')
+  async fcmToken(@Param('id') id: string, @Body('fcmToken') fcmToken: string) {
+    await this.usuariosService.actualizarFcmToken(id, fcmToken);
+    return { ok: true };
   }
 }

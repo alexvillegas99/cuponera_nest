@@ -9,6 +9,8 @@ import {
 import { CuponModule } from 'src/cupon/cupon.module';
 import { UsuariosModule } from 'src/usuarios/usuarios.module';
 import { VersionCuponeraModule } from 'src/version-cuponera/version-cuponera.module';
+import { NotificacionesModule } from 'src/notificaciones/notificaciones.module';
+import { ClientesModule } from 'src/clientes/clientes.module';
 
 @Module({
   imports: [
@@ -17,7 +19,9 @@ import { VersionCuponeraModule } from 'src/version-cuponera/version-cuponera.mod
     ]),
    forwardRef(() => CuponModule),
     UsuariosModule,
-    VersionCuponeraModule
+    VersionCuponeraModule,
+    NotificacionesModule,
+    ClientesModule,
   ],
   controllers: [HistoricoCuponController],
   providers: [HistoricoCuponService],

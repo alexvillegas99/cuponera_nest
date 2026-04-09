@@ -167,6 +167,28 @@ export class NotificacionesService {
     }
   }
 
+  /** 🔹 Enviar notificación a un token FCM específico */
+  async enviarAToken(
+    fcmToken: string,
+    title: string,
+    body: string,
+    data?: Record<string, string>,
+  ): Promise<void> {
+    if (!fcmToken) return;
+    try {
+      const notificacion = {
+        message: {
+          token: fcmToken,
+          notification: { title, body },
+          ...(data && { data }),
+        },
+      };
+      await this.enviarNotificacion(notificacion);
+    } catch (error) {
+      console.error('❌ enviarAToken error:', error.message);
+    }
+  }
+
   /** 🔹 Obtener todas las notificaciones */
   async getAllNotifications(): Promise<any[]> {
     try {

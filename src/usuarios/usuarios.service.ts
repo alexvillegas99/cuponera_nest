@@ -624,4 +624,13 @@ export class UsuariosService {
       { new: true },
     );
   }
+
+  async actualizarFcmToken(usuarioId: string, fcmToken: string): Promise<void> {
+    await this.usuarioModel.findByIdAndUpdate(usuarioId, { fcmToken });
+  }
+
+  async obtenerFcmToken(usuarioId: string): Promise<string | null> {
+    const doc = await this.usuarioModel.findById(usuarioId).select('fcmToken').lean();
+    return (doc as any)?.fcmToken ?? null;
+  }
 }

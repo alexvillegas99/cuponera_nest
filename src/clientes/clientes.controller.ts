@@ -209,4 +209,10 @@ export class ClientesController {
     // Si tu reset NO requiere code, se ignora dto.code
     return this.service.resetPassword(dto.email, dto.password);
   }
+
+  @Patch(':id/fcm-token')
+  async fcmToken(@Param('id') id: string, @Body('fcmToken') fcmToken: string) {
+    await this.service.actualizarFcmToken(id, fcmToken);
+    return { ok: true };
+  }
 }
