@@ -9,6 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService, JwtModule } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import * as jwt from 'jsonwebtoken';
+import axios from 'axios';
 import { ClientesService } from 'src/clientes/clientes.service';
 import { DateTimeService } from 'src/common/services/dateTimeService';
 import { JWT_EXPIRES_IN, JWT_SECRET } from 'src/config/config.env';
@@ -136,6 +137,56 @@ export class AuthService {
     });
     await this.mailService.enviar(cli.email, 'Inicio de sesión', html);
     return { accessToken, cliente: cli };
+  }
+
+  private async _verifyGoogleToken(idToken: string) {
+    try {
+      const { data } = await axios.get(
+        `https://oauth2.googleapis.com/tokeninfo?id_token=${idToken}`,
+      );
+      if (data.email_verified !== 'true') {
+        throw new UnauthorizedException('El email de Google no está verificado');
+      }
+      return data as { email: string; given_name?: string; family_name?: string; sub: string };
+    } catch (err: any) {
+      if (err instanceof UnauthorizedException) throw err;
+      throw new UnauthorizedException('Token de Google inválido');
+    }
+  }
+
+  async loginWithGoogle(idToken: string) {
+    const gp = await this._verifyGoogleToken(idToken);
+    const email = gp.email;
+    const nombres = gp.given_name ?? email.split('@')[0];
+    const apellidos = gp.family_name ?? '';
+    const googleId = gp.sub;
+
+    const cliente: any = await this.clienteService.findByEmail(email);
+
+    if (cliente) {
+      const accessToken = this.jwtService.sign({ sub: cliente._id, kind: 'CLIENTE' as const });
+      return { registered: true, accessToken, cliente };
+    }
+
+    return { registered: false, googleData: { nombres, apellidos, email, googleId } };
+  }
+
+  async loginUsuarioWithGoogle(idToken: string) {
+    const gp = await this._verifyGoogleToken(idToken);
+
+    const user: any = await this.usuariosService.findByEmail(gp.email);
+    if (!user) {
+      throw new UnauthorizedException(
+        'No existe una cuenta de empresa con ese correo de Google.',
+      );
+    }
+    if (!user.estado) {
+      throw new UnauthorizedException('Usuario desactivado, comuníquese con el administrador.');
+    }
+
+    const accessToken = this.jwtService.sign({ sub: user._id, kind: 'USUARIO' as const });
+    const permisos = await this.rolesService.getPermisosForUsuario(user);
+    return { accessToken, user: { ...user, permisos } };
   }
 
   generateRefreshToken(userId: string) {

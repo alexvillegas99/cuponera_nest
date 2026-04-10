@@ -81,6 +81,34 @@ export class AuthController {
     return res.status(200).json(result);
   }
 
+  @ApiOperation({ summary: 'Login de cliente con Google (Firebase ID token)' })
+  @Post('google/cliente')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { idToken: { type: 'string' } },
+      example: { idToken: 'eyJhbGciOi...' },
+    },
+  })
+  async loginWithGoogle(@Body() body: { idToken: string }, @Res() res: Response) {
+    const result = await this.authService.loginWithGoogle(body.idToken);
+    return res.status(200).json(result);
+  }
+
+  @ApiOperation({ summary: 'Login de usuario/empresa con Google (Firebase ID token)' })
+  @Post('google/usuario')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { idToken: { type: 'string' } },
+      example: { idToken: 'eyJhbGciOi...' },
+    },
+  })
+  async loginUsuarioWithGoogle(@Body() body: { idToken: string }, @Res() res: Response) {
+    const result = await this.authService.loginUsuarioWithGoogle(body.idToken);
+    return res.status(200).json(result);
+  }
+
   @Auth()
   @ApiOperation({ summary: 'Renueva el token de autenticación' })
   @Get('refresh-token')
