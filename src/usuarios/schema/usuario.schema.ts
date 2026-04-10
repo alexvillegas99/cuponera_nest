@@ -144,9 +144,9 @@ export class Usuario {
   @Prop({ required: true, trim: true })
   identificacion: string;
 
-  /** Rol de usuario (legacy string) / User role (legacy) */
-  @Prop({ type: String, enum: RolUsuario, default: RolUsuario.STAFF })
-  rol: RolUsuario;
+  /** Rol de usuario (slug del rol dinámico) */
+  @Prop({ type: String, default: RolUsuario.STAFF })
+  rol: string;
 
   /** Referencia al rol dinámico / Dynamic role reference */
   @Prop({ type: Types.ObjectId, ref: 'Rol', default: null })
@@ -192,6 +192,17 @@ export class Usuario {
   @Prop() ultimaConexion?: Date;
 
   @Prop({ type: String }) fcmToken?: string;
+
+  /** Geolocalización del local { lat, lng } */
+  @Prop({
+    type: {
+      lat: { type: Number, required: true },
+      lng: { type: Number, required: true },
+    },
+    required: false,
+    default: null,
+  })
+  ubicacion?: { lat: number; lng: number } | null;
 }
 
 export const UsuarioSchema = SchemaFactory.createForClass(Usuario);
