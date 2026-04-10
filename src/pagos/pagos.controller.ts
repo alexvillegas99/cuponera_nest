@@ -83,7 +83,7 @@ export class PagosController {
   @Auth()
   @ApiOperation({ summary: 'Crear transacción PayPhone (legacy)' })
   crearTransaccion(@Body() body: any) {
-    return this.pagosService.crearTransaccion(body);
+    return this.pagosService.iniciarPayPhone(body);
   }
 
   @Post('webhook')

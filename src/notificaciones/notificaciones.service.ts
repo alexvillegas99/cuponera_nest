@@ -169,7 +169,7 @@ export class NotificacionesService {
 
   /** 🔹 Enviar notificación a un token FCM específico */
   async enviarAToken(
-    fcmToken: string,
+    fcmToken: string | null,
     title: string,
     body: string,
     data?: Record<string, string>,
