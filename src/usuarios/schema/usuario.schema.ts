@@ -194,7 +194,7 @@ export class Usuario {
   @Prop({ type: String }) fcmToken?: string;
 
   /** Geolocalización del local { lat, lng } */
-  @Prop({
+  @Prop({ 
     type: {
       lat: { type: Number, required: true },
       lng: { type: Number, required: true },

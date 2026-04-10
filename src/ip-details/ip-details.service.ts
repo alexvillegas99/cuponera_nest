@@ -16,8 +16,26 @@ export class IpDetailsService {
     @InjectModel(IpDetailsCollection) private ipDetailsModel: Model<IpDetail>,
   ) {}
 
+  private isPrivateIp(ip: string): boolean {
+    if (!ip) return true;
+    const clean = ip.replace(/^::ffff:/, ''); // normaliza IPv4-mapped
+    return (
+      clean === '127.0.0.1' ||
+      clean === '::1' ||
+      clean.startsWith('10.') ||
+      clean.startsWith('192.168.') ||
+      /^172\.(1[6-9]|2\d|3[01])\./.test(clean)
+    );
+  }
+
   public async getIpDetails(ip: string) {
     this.logger.log('Buscando información de la ip: ' + ip);
+
+    if (this.isPrivateIp(ip)) {
+      this.logger.log('IP privada/local detectada — omitiendo geolocalización');
+      return { status: 'local', query: ip, city: null, country: null };
+    }
+
     let ipInfo = await this.getDbIpInfo(ip);
 
     if (!ipInfo) {

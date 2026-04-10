@@ -3,6 +3,7 @@ import {
   forwardRef,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
@@ -21,6 +22,7 @@ import { ClientesService } from 'src/clientes/clientes.service';
 
 @Injectable()
 export class HistoricoCuponService {
+  private readonly logger = new Logger(HistoricoCuponService.name);
   constructor(
     @InjectModel(HistoricoCupon.name)
     private readonly historicoModel: Model<HistoricoCuponDocument>,
@@ -166,6 +168,7 @@ export class HistoricoCuponService {
     const historico = await this.historicoModel.create({
       cupon: dto.cupon,
       usuario: dto.usuario,
+      escaneadoPor: dto.escaneadoPor ?? dto.usuario,
       fechaEscaneo: new Date(),
     });
 
@@ -217,6 +220,7 @@ export class HistoricoCuponService {
       .find()
       .populate('cupon')
       .populate('usuario')
+      .populate({ path: 'escaneadoPor', select: 'nombre email rol' })
       .sort({ fechaEscaneo: -1 })
       .exec();
   }
@@ -260,6 +264,7 @@ export class HistoricoCuponService {
           select: 'nombre email',
         },
       })
+      .populate({ path: 'escaneadoPor', select: 'nombre email rol' })
       .sort({ fechaEscaneo: -1 })
       .lean()
       .exec();
@@ -275,20 +280,27 @@ export class HistoricoCuponService {
     const user: any = await this._usuariosModel.findById(id);
     if (!user) throw new NotFoundException('Usuario no encontrado');
 
-    let idsUsuarios: string[];
-    if (String(user.rol).toLowerCase() !== 'staff') {
-      const usuarios =
-        await this._usuariosModel.buscarTodosLosUsuariosPorResponsable(
-          user._id,
-        );
-      idsUsuarios = usuarios.map((u) => String(u._id));
-      idsUsuarios.push(String(user._id));
-    } else {
-      idsUsuarios = [String(user._id)];
-    }
+    let filter: any;
+    const rolStr = String(user.rol || '').toLowerCase();
+    this.logger.log(`[buscarPorIdDeUsuario] id=${id} rol=${rolStr}`);
+
+    // Resolver el admin-local raíz: si es staff → su usuarioCreacion, si no → él mismo
+    const adminLocalId = rolStr === 'staff'
+      ? String(user.usuarioCreacion ?? user._id)
+      : String(user._id);
+
+    this.logger.log(`[buscarPorIdDeUsuario] adminLocalId resuelto: ${adminLocalId}`);
+
+    // Obtener todos los IDs del grupo (admin-local + su staff)
+    const usuarios = await this._usuariosModel.buscarTodosLosUsuariosPorResponsable(adminLocalId);
+    const idsGrupo = usuarios.map((u) => String(u._id));
+    idsGrupo.push(adminLocalId);
+
+    this.logger.log(`[buscarPorIdDeUsuario] grupo completo: ${idsGrupo}`);
+    filter = { usuario: { $in: idsGrupo } };
 
     const cupones = await this.historicoModel
-      .find({ usuario: { $in: idsUsuarios } })
+      .find(filter)
       .populate({
         path: 'usuario',
         select: 'nombre email usuarioCreacion',
@@ -298,6 +310,7 @@ export class HistoricoCuponService {
           select: 'nombre email',
         },
       })
+      .populate({ path: 'escaneadoPor', select: 'nombre email rol' })
       .populate({
         path: 'cupon',
         select: 'estado fechaActivacion numeroDeEscaneos secuencial version',
@@ -309,9 +322,6 @@ export class HistoricoCuponService {
       .sort({ fechaEscaneo: -1 })
       .exec();
 
-    if (!cupones.length) {
-      throw new NotFoundException('No se encontraron cupones para este usuario');
-    }
     return cupones;
   }
 
@@ -327,13 +337,21 @@ export class HistoricoCuponService {
     const fin = new Date(body.fechaFin);
     fin.setUTCHours(28, 59, 59, 999);
 
-    const arrayUsuarios = await this.obtenerIdsUsuariosRelacionados(body.id);
+    const user: any = await this._usuariosModel.findById(body.id);
+    const rolStr2 = String(user?.rol || '').toLowerCase();
+    const adminLocalId2 = rolStr2 === 'staff'
+      ? String(user.usuarioCreacion ?? user._id)
+      : String(user._id);
+    const usuariosGrupo = await this._usuariosModel.buscarTodosLosUsuariosPorResponsable(adminLocalId2);
+    const idsGrupo2 = usuariosGrupo.map((u: any) => String(u._id));
+    idsGrupo2.push(adminLocalId2);
+    const fechaFilter = {
+      fechaEscaneo: { $gte: inicio, $lte: fin },
+      usuario: { $in: idsGrupo2 },
+    };
 
     return this.historicoModel
-      .find({
-        fechaEscaneo: { $gte: inicio, $lte: fin },
-        usuario: { $in: arrayUsuarios },
-      })
+      .find(fechaFilter)
       .populate('cupon')
       .populate({
         path: 'usuario',
@@ -344,6 +362,7 @@ export class HistoricoCuponService {
           select: 'nombre email',
         },
       })
+      .populate({ path: 'escaneadoPor', select: 'nombre email rol' })
       .exec();
   }
 
@@ -363,14 +382,23 @@ export class HistoricoCuponService {
     if (!versionId) {
       return { ...cupon, valido: false, message: 'El cupón no tiene versión válida' };
     }
-    await this.assertMismaCiudad(usuarioId, versionId);
+
+    try {
+      await this.assertMismaCiudad(usuarioId, versionId);
+    } catch (e: any) {
+      return {
+        ...cupon,
+        valido: false,
+        message: e?.message ?? 'El local no está habilitado para canjear esta cuponera',
+      };
+    }
 
     const historicoExistente = await this.historicoModel
       .findOne({ cupon: id, usuario: { $in: arrayUsuarios } })
       .lean();
 
     if (historicoExistente) {
-      return { ...cupon, valido: false, message: 'Cupon ya registrado' };
+      return { ...cupon, valido: false, message: 'Cupón ya registrado' };
     }
 
     return { ...cupon, valido: true, message: 'Cupón válido para registro' };

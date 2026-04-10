@@ -33,5 +33,6 @@ export interface ComercioMiniResponse {
   promedioCalificacion: number;
   totalComentarios: number;
   telefono?: string;
+  ubicacion?: { lat: number; lng: number } | null;
   comentarios: ComentarioDto[]; // puede ir vacío
 }

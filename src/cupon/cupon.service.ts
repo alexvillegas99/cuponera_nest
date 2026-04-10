@@ -464,12 +464,13 @@ export class CuponService {
       return {
         _id: String(c._id),
         nombre: nombreVersion,
+        versionId: c?.version?._id ? String(c.version._id) : null,
         codigo,
         emitidaEl,
         expiraEl,
         qrData: codigo,
         totalEscaneos: Number(c?.numeroDeEscaneos ?? 0),
-        scans: [], // cuando tengas historial real, lo llenas aquí
+        scans: [],
       };
     });
   }
@@ -667,6 +668,7 @@ export class CuponService {
             : null,
         },
         version: {
+          _id: version._id ? String(version._id) : null,
           nombre: version.nombre,
           estado: !!version.estado,
           ciudadesDisponibles: ciudadesVersionNombres,

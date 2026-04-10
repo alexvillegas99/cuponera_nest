@@ -11,10 +11,15 @@ export class HistoricoCupon {
   @Prop({ type: Types.ObjectId, ref: Cupon.name, required: true })
   cupon: Types.ObjectId;
 
+  /** Admin-local responsable (usado para validación de ciudad y anti-duplicado) */
   @Prop({ type: Types.ObjectId, ref: Usuario.name, required: true })
   usuario: Types.ObjectId;
 
- @Prop({ default: Date.now })
+  /** Usuario que físicamente escaneó el QR (puede ser staff o el mismo admin-local) */
+  @Prop({ type: Types.ObjectId, ref: Usuario.name, default: null })
+  escaneadoPor: Types.ObjectId;
+
+  @Prop({ default: Date.now })
   fechaEscaneo: Date;
 }
 

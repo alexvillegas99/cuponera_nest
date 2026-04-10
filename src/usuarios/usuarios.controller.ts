@@ -104,6 +104,14 @@ export class UsuariosController {
     },
   })
   async create(@Body() dto: any, @GetUser() user: any) {
+    // Si el creador es vendedor, siempre usar su propio ID como usuarioCreacion
+    const permisos: string[] = user?.permisos ?? [];
+    const esVendedor =
+      permisos.includes('establecimientos.editar') &&
+      !permisos.includes('dashboard.ver');
+    if (esVendedor || !dto.usuarioCreacion) {
+      dto.usuarioCreacion = user._id;
+    }
     const result = await this.usuariosService.create(dto);
     this.auditoria.registrarDesdeUsuario(user, {
       accion: 'usuario.crear',
@@ -118,18 +126,23 @@ export class UsuariosController {
   }
   @Get('establecimientos')
   @Auth()
-  @ApiOperation({
-    summary: 'Listado de establecimientos (admin-local y staff)',
-  })
+  @ApiOperation({ summary: 'Listado de establecimientos' })
   findEstablecimientos(
     @Query('page') page = '1',
     @Query('limit') limit = '12',
     @Query('q') q = '',
+    @GetUser() user: any,
   ) {
+    const permisos: string[] = user?.permisos ?? [];
+    const esVendedor =
+      permisos.includes('establecimientos.editar') &&
+      !permisos.includes('dashboard.ver');
+    console.log('[findEstablecimientos] userId:', user?._id, '| rol:', user?.rol, '| permisos:', permisos, '| esVendedor:', esVendedor);
     return this.usuariosService.findEstablecimientos({
       page: Number(page),
       limit: Number(limit),
       q,
+      soloCreadorId: esVendedor ? String(user._id) : undefined,
     });
   }
   @Get('por-ciudades')
@@ -279,6 +292,34 @@ export class UsuariosController {
     },
   })
   async update(@Param('id') id: string, @Body() dto: any, @GetUser() user: any) {
+    const permisos: string[] = user?.permisos ?? [];
+    const soloFotos =
+      permisos.includes('establecimientos.fotos') &&
+      !permisos.includes('establecimientos.editar') &&
+      !permisos.includes('usuarios.editar');
+    const soloEditar =
+      permisos.includes('establecimientos.editar') &&
+      !permisos.includes('establecimientos.fotos') &&
+      !permisos.includes('usuarios.editar');
+
+    // mkt-fotos: solo puede tocar imageBase64 y logoBase64 dentro de detallePromocion
+    if (soloFotos) {
+      const { imageBase64, logoBase64 } = dto?.detallePromocion ?? {};
+      dto = { detallePromocion: { imageBase64, logoBase64 } };
+    }
+
+    // vendedor: no puede tocar las fotos, y solo sus propios establecimientos
+    if (soloEditar) {
+      const establecimiento = await this.usuariosService.findByIdRaw(id);
+      if (String(establecimiento?.usuarioCreacion) !== String(user._id)) {
+        throw new Error('No tienes permiso para editar este establecimiento');
+      }
+      if (dto.detallePromocion) {
+        delete dto.detallePromocion.imageBase64;
+        delete dto.detallePromocion.logoBase64;
+      }
+    }
+
     const result = await this.usuariosService.update(id, dto);
     this.auditoria.registrarDesdeUsuario(user, {
       accion: 'usuario.editar',

@@ -103,6 +103,8 @@ export const PERMISOS_CATALOG: GrupoPermisos[] = [
     nombre: 'Establecimientos',
     permisos: [
       { clave: 'establecimientos.ver', nombre: 'Ver establecimientos', descripcion: 'Listar y ver establecimientos' },
+      { clave: 'establecimientos.editar', nombre: 'Editar detalles', descripcion: 'Editar datos del establecimiento (sin fotos). Solo los propios si es Vendedor.' },
+      { clave: 'establecimientos.fotos', nombre: 'Actualizar fotos', descripcion: 'Subir o cambiar imagen y logo del establecimiento' },
     ],
   },
   {

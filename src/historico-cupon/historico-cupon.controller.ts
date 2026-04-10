@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Query, Param } from '@nestjs/common';
+import { Controller, Post, Body, Get, Query, Param, Logger } from '@nestjs/common';
 import { HistoricoCuponService } from './historico-cupon.service';
 import { CreateHistoricoCuponDto } from './dto/create-historico-cupon.dto';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
@@ -7,6 +7,7 @@ import { Auth } from 'src/auth/decorators/auth.decorator';
 @ApiTags('Histórico de Cupones')
 @Controller('historico')
 export class HistoricoCuponController {
+  private readonly logger = new Logger(HistoricoCuponController.name);
   constructor(private readonly historicoService: HistoricoCuponService) {}
 
   @Post()
@@ -82,7 +83,15 @@ export class HistoricoCuponController {
     },
   })
   async validarCuponPorId(@Body() body: { id: string; usuarioId: string }) {
-    return await this.historicoService.validarCuponPorId(body);
+    this.logger.log(`[validarCuponPorId] body recibido: ${JSON.stringify(body)}`);
+    try {
+      const result = await this.historicoService.validarCuponPorId(body);
+      this.logger.log(`[validarCuponPorId] resultado: valido=${result?.valido} message="${result?.message}"`);
+      return result;
+    } catch (e) {
+      this.logger.error(`[validarCuponPorId] excepcion: ${e?.message}`, e?.stack);
+      throw e;
+    }
   }
 
   @Post('usuario/fechas/dashboard')

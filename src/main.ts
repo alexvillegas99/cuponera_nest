@@ -29,6 +29,8 @@ async function bootstrap() {
   app.use(urlencoded({ extended: true, limit: '150mb' }));
   //Cors
   app.enableCors();
+  // Confiar en proxy para obtener la IP real del cliente
+  app.set('trust proxy', true);
   //Prefijo Global de la api
   app.setGlobalPrefix('api');
   // Configuración de CORS

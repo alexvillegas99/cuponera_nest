@@ -27,21 +27,13 @@ export class RolesService implements OnModuleInit {
     await this.seed();
   }
 
-  /** Semilla de roles por defecto */
+  /** Semilla de roles por defecto — upsert para actualizar permisos en cada arranque */
   private async seed() {
-    const count = await this.rolModel.countDocuments();
-    if (count > 0) return;
-
-    this.logger.log('Sembrando roles por defecto...');
+    this.logger.log('Sincronizando roles por defecto...');
 
     const permisosAdminLocal = TODOS_LOS_PERMISOS.filter((p) => {
       const modulo = p.split('.')[0];
-      return [
-        'web',
-        'dashboard-local',
-        'usuarios-local',
-        'perfil-local',
-      ].includes(modulo);
+      return ['web', 'dashboard-local', 'usuarios-local', 'perfil-local'].includes(modulo);
     });
 
     const permisosStaff = TODOS_LOS_PERMISOS.filter((p) => {
@@ -49,135 +41,76 @@ export class RolesService implements OnModuleInit {
       return ['dashboard-local', 'historico'].includes(modulo);
     });
 
-    const permisosVisualizador = TODOS_LOS_PERMISOS.filter((p) =>
-      p.endsWith('.ver'),
-    );
+    const permisosVisualizador = TODOS_LOS_PERMISOS.filter((p) => p.endsWith('.ver'));
 
     const roles = [
-      {
-        nombre: 'Administrador',
-        descripcion: 'Acceso total al sistema',
-        permisos: [...TODOS_LOS_PERMISOS],
-        esSistema: true,
-        slug: 'admin',
-      },
-      {
-        nombre: 'Admin Local',
-        descripcion: 'Administrador de establecimiento local',
-        permisos: permisosAdminLocal,
-        esSistema: true,
-        slug: 'admin-local',
-      },
-      {
-        nombre: 'Staff',
-        descripcion: 'Personal con acceso básico',
-        permisos: permisosStaff,
-        esSistema: true,
-        slug: 'staff',
-      },
-      {
-        nombre: 'Visualizador',
-        descripcion: 'Solo lectura',
-        permisos: permisosVisualizador,
-        esSistema: true,
-        slug: 'visualizador',
-      },
-      // ── Roles predefinidos (no son de sistema, se pueden eliminar) ──
+      // ── Sistema ──
+      { nombre: 'Administrador', descripcion: 'Acceso total al sistema', permisos: [...TODOS_LOS_PERMISOS], esSistema: true, slug: 'admin' },
+      { nombre: 'Admin Local', descripcion: 'Administrador de establecimiento local', permisos: permisosAdminLocal, esSistema: true, slug: 'admin-local' },
+      { nombre: 'Staff', descripcion: 'Personal con acceso básico', permisos: permisosStaff, esSistema: true, slug: 'staff' },
+      { nombre: 'Visualizador', descripcion: 'Solo lectura', permisos: permisosVisualizador, esSistema: true, slug: 'visualizador' },
+      // ── Predefinidos ──
       {
         nombre: 'Vendedor',
-        descripcion: 'Gestión de cupones y establecimientos',
-        permisos: [
-          'web.acceso',
-          'dashboard.ver',
-          'cupones.ver',
-          'cupones.crear',
-          'cupones.activar',
-          'establecimientos.ver',
-          'categorias.ver',
-        ],
+        descripcion: 'Puede ver y editar solo los establecimientos que él mismo registró. Sin acceso a fotos.',
+        permisos: ['web.acceso', 'establecimientos.ver', 'establecimientos.editar'],
         esSistema: false,
         slug: 'vendedor',
       },
       {
+        nombre: 'MKT Fotos',
+        descripcion: 'Solo puede actualizar las fotos (imagen y logo) de cualquier establecimiento.',
+        permisos: ['web.acceso', 'establecimientos.ver', 'establecimientos.fotos'],
+        esSistema: false,
+        slug: 'mkt-fotos',
+      },
+      {
         nombre: 'Soporte',
         descripcion: 'Atención al cliente y gestión de solicitudes',
-        permisos: [
-          'web.acceso',
-          'dashboard.ver',
-          'clientes.ver',
-          'clientes.editar',
-          'solicitudes.ver',
-          'solicitudes.aprobar',
-          'cupones.ver',
-          'cupones.asignar',
-          'historico.ver',
-        ],
+        permisos: ['web.acceso', 'dashboard.ver', 'clientes.ver', 'clientes.editar', 'solicitudes.ver', 'solicitudes.aprobar', 'cupones.ver', 'cupones.asignar', 'historico.ver'],
         esSistema: false,
         slug: 'soporte',
       },
       {
         nombre: 'Contador',
         descripcion: 'Acceso a reportes y consultas financieras',
-        permisos: [
-          'web.acceso',
-          'dashboard.ver',
-          'reportes.ver',
-          'cupones.ver',
-          'clientes.ver',
-          'solicitudes.ver',
-          'pagos.ver',
-          'historico.ver',
-        ],
+        permisos: ['web.acceso', 'dashboard.ver', 'reportes.ver', 'cupones.ver', 'clientes.ver', 'solicitudes.ver', 'pagos.ver', 'historico.ver'],
         esSistema: false,
         slug: 'contador',
       },
       {
         nombre: 'Marketing',
         descripcion: 'Gestión de contenido y promociones',
-        permisos: [
-          'web.acceso',
-          'dashboard.ver',
-          'cupones.ver',
-          'cupones.crear',
-          'cupones.lote',
-          'versiones.ver',
-          'versiones.crear',
-          'versiones.editar',
-          'categorias.ver',
-          'categorias.crear',
-          'categorias.editar',
-          'establecimientos.ver',
-          'notificaciones.ver',
-          'notificaciones.enviar',
-        ],
+        permisos: ['web.acceso', 'dashboard.ver', 'cupones.ver', 'cupones.crear', 'cupones.lote', 'versiones.ver', 'versiones.crear', 'versiones.editar', 'categorias.ver', 'categorias.crear', 'categorias.editar', 'establecimientos.ver', 'notificaciones.ver', 'notificaciones.enviar'],
         esSistema: false,
         slug: 'marketing',
       },
       {
         nombre: 'Supervisor',
         descripcion: 'Supervisión general sin acceso a configuración',
-        permisos: [
-          'web.acceso',
-          'dashboard.ver',
-          'usuarios.ver',
-          'clientes.ver',
-          'cupones.ver',
-          'establecimientos.ver',
-          'reportes.ver',
-          'solicitudes.ver',
-          'historico.ver',
-          'categorias.ver',
-          'ciudades.ver',
-          'versiones.ver',
-          'pagos.ver',
-        ],
+        permisos: ['web.acceso', 'dashboard.ver', 'usuarios.ver', 'clientes.ver', 'cupones.ver', 'establecimientos.ver', 'reportes.ver', 'solicitudes.ver', 'historico.ver', 'categorias.ver', 'ciudades.ver', 'versiones.ver', 'pagos.ver'],
         esSistema: false,
         slug: 'supervisor',
       },
     ];
 
-    await this.rolModel.insertMany(roles);
-    this.logger.log(`${roles.length} roles creados por defecto`);
+    let creados = 0;
+    let actualizados = 0;
+
+    for (const rol of roles) {
+      const resultado = await this.rolModel.findOneAndUpdate(
+        { slug: rol.slug },
+        { $set: rol },
+        { upsert: true, new: true },
+      ) as any;
+      if (resultado.createdAt?.getTime() === resultado.updatedAt?.getTime()) {
+        creados++;
+      } else {
+        actualizados++;
+      }
+    }
+
+    this.logger.log(`Roles sincronizados: ${creados} creados, ${actualizados} actualizados`);
   }
 
   async create(dto: CreateRolDto) {

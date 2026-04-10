@@ -351,6 +351,7 @@ export class UsuariosService {
           ciudades: 1,
           categorias: 1,
           promedioCalificacion: 1,
+          ubicacion: 1,
         },
       )
       .populate('ciudades', 'nombre')
@@ -365,17 +366,17 @@ export class UsuariosService {
 
       const negocioIdStr = String(d._id);
 
-      // 👇 tomamos el detalle y FORZAMOS su "id" = _id raíz
       const detalleOriginal = d?.detallePromocion ?? {};
       const detalle = {
         ...detalleOriginal,
-        id: negocioIdStr, // ✅ ahora detallePromocion.id = _id
+        id: negocioIdStr,
         rating: ratingFromRoot,
       };
 
       return {
         _id: negocioIdStr,
         detallePromocion: detalle,
+        ubicacion: d.ubicacion ?? null,
         ciudades: Array.isArray(d.ciudades)
           ? d.ciudades
               .map((c: any) => (typeof c === 'string' ? c : c?.nombre))
@@ -407,6 +408,7 @@ export class UsuariosService {
         promedioCalificacion: 1,
         totalComentarios: 1,
         telefono: 1,
+        ubicacion: 1,
       })
       .populate({ path: 'ciudades', select: 'nombre', options: { lean: true } })
       .populate({
@@ -495,6 +497,7 @@ export class UsuariosService {
       promedioCalificacion: Number(u.promedioCalificacion ?? 0),
       totalComentarios: Number(u.totalComentarios ?? 0),
       telefono: u.telefono ?? undefined,
+      ubicacion: u.ubicacion ?? null,
       comentarios,
     };
   }
@@ -513,10 +516,12 @@ export class UsuariosService {
     page = 1,
     limit = 12,
     q = '',
+    soloCreadorId,
   }: {
     page: number;
     limit: number;
     q?: string;
+    soloCreadorId?: string;
   }) {
     const ctx = 'findEstablecimientos';
     this.logger.log(`[${ctx}] INIT → page=${page}, limit=${limit}, q=${q}`);
@@ -543,8 +548,9 @@ export class UsuariosService {
         }
       : {};
 
-    const baseQuery = {
+    const baseQuery: any = {
       rol: { $in: [RolUsuario.LOCAL] },
+      ...(soloCreadorId ? { usuarioCreacion: soloCreadorId } : {}),
       ...search,
     };
 

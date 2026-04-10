@@ -108,7 +108,8 @@ export class AuthService {
 
     // Adjuntar permisos del rol al usuario
     const permisos = await this.rolesService.getPermisosForUsuario(user);
-    return { accessToken, user: { ...user, permisos } };
+    const userObj = user.toObject ? user.toObject() : { ...user };
+    return { accessToken, user: { ...userObj, _id: userObj._id?.toString(), permisos } };
   }
 
   async loginCliente(
@@ -154,7 +155,7 @@ export class AuthService {
     }
   }
 
-  async loginWithGoogle(idToken: string) {
+  async loginWithGoogle(idToken: string, ip: string, ubicacion: string, dispositivo: string) {
     const gp = await this._verifyGoogleToken(idToken);
     const email = gp.email;
     const nombres = gp.given_name ?? email.split('@')[0];
@@ -165,13 +166,22 @@ export class AuthService {
 
     if (cliente) {
       const accessToken = this.jwtService.sign({ sub: cliente._id, kind: 'CLIENTE' as const });
+      const fecha = this.dateService.formatEC();
+      const html = this.mailService.getTemplate('login.html', {
+        nombre: cliente.nombres + ' ' + cliente.apellidos,
+        fecha,
+        ubicacion,
+        ip,
+        dispositivo,
+      });
+      await this.mailService.enviar(cliente.email, 'Inicio de sesión', html);
       return { registered: true, accessToken, cliente };
     }
 
     return { registered: false, googleData: { nombres, apellidos, email, googleId } };
   }
 
-  async loginUsuarioWithGoogle(idToken: string) {
+  async loginUsuarioWithGoogle(idToken: string, ip: string, ubicacion: string, dispositivo: string) {
     const gp = await this._verifyGoogleToken(idToken);
 
     const user: any = await this.usuariosService.findByEmail(gp.email);
@@ -186,7 +196,17 @@ export class AuthService {
 
     const accessToken = this.jwtService.sign({ sub: user._id, kind: 'USUARIO' as const });
     const permisos = await this.rolesService.getPermisosForUsuario(user);
-    return { accessToken, user: { ...user, permisos } };
+    const fecha = this.dateService.formatEC();
+    const html = this.mailService.getTemplate('login.html', {
+      nombre: user.nombre,
+      fecha,
+      ubicacion,
+      ip,
+      dispositivo,
+    });
+    await this.mailService.enviar(user.email, 'Inicio de sesión', html);
+    const userObj = user.toObject ? user.toObject() : { ...user };
+    return { accessToken, user: { ...userObj, _id: userObj._id?.toString(), permisos } };
   }
 
   generateRefreshToken(userId: string) {

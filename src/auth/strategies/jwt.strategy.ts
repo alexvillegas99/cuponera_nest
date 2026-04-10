@@ -29,14 +29,16 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (kind === 'CLIENTE') {
       const cliente = await this.clientesService.findById(id).catch(() => null);
       if (!cliente) throw new UnauthorizedException('Token inválido o cliente no encontrado');
-      return { ...cliente, kind: 'CLIENTE', permisos: [] };
+      const clienteObj = (cliente as any).toObject ? (cliente as any).toObject() : { ...cliente };
+      return { ...clienteObj, _id: clienteObj._id?.toString(), kind: 'CLIENTE', permisos: [] };
     } else {
       const usuario = await this.usuarioService.findById(id).catch(() => null);
       if (!usuario) throw new UnauthorizedException('Token inválido o usuario no encontrado');
 
       // Resolver permisos del rol
       const permisos = await this.rolesService.getPermisosForUsuario(usuario);
-      return { ...usuario, kind: 'USUARIO', permisos };
+      const usuarioObj = (usuario as any).toObject ? (usuario as any).toObject() : { ...usuario };
+      return { ...usuarioObj, _id: usuarioObj._id?.toString(), kind: 'USUARIO', permisos };
     }
   }
 }

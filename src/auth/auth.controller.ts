@@ -40,16 +40,9 @@ export class AuthController {
   ) {
     const ua = req['ua'];
     const ip = req['ipd'];
-
-    console.log(ua);
-    console.log(ip);
-    const ipQuery = ip.query;
-    const ubicacion = ip.city + ' - ' + ip.country;
-     const dispositivo = ua?.device?.vendor
-      ? ua.os.name + ' - ' + ua.device.vendor
-      : ua.os.name;
-    console.log('dispositivo', dispositivo);
-    console.log('ubicacion', ubicacion);
+    const ipQuery = ip?.query ?? 'Desconocida';
+    const ubicacion = (ip?.city && ip?.country) ? `${ip.city} - ${ip.country}` : 'Red interna';
+    const dispositivo = (ua?.os?.name ?? 'Desconocido') + (ua?.device?.vendor ? ` · ${ua.device.vendor}` : '');
     const result = await this.authService.loginUsuario(body,ipQuery,ubicacion,dispositivo);
     return res.status(200).json(result);
   } 
@@ -68,15 +61,9 @@ export class AuthController {
   async loginCliente(@Body() body: { correo: string; clave: string }, @Res() res: Response,   @Req() req: Request,) {
      const ua = req['ua'];
     const ip = req['ipd'];
-
-    console.log(ua);
-    console.log(ip);
-    const ipQuery = ip.query;
-    const ubicacion = ip.city + ' - ' + ip.country;
-     const dispositivo = ua?.device?.vendor
-      ? ua.os.name + ' - ' + ua.device.vendor
-      : ua.os.name;
-      
+    const ipQuery = ip?.query ?? 'Desconocida';
+    const ubicacion = (ip?.city && ip?.country) ? `${ip.city} - ${ip.country}` : 'Red interna';
+    const dispositivo = (ua?.os?.name ?? 'Desconocido') + (ua?.device?.vendor ? ` · ${ua.device.vendor}` : '');
     const result = await this.authService.loginCliente(body,ipQuery,ubicacion,dispositivo);
     return res.status(200).json(result);
   }
@@ -90,8 +77,14 @@ export class AuthController {
       example: { idToken: 'eyJhbGciOi...' },
     },
   })
-  async loginWithGoogle(@Body() body: { idToken: string }, @Res() res: Response) {
-    const result = await this.authService.loginWithGoogle(body.idToken);
+  @UseInterceptors(IpDetailsInterceptor)
+  async loginWithGoogle(@Body() body: { idToken: string }, @Res() res: Response, @Req() req: Request) {
+    const ua = req['ua'];
+    const ip = req['ipd'];
+    const ipQuery = ip?.query ?? 'Desconocida';
+    const ubicacion = (ip?.city && ip?.country) ? `${ip.city} - ${ip.country}` : 'Red interna';
+    const dispositivo = (ua?.os?.name ?? 'Desconocido') + (ua?.device?.vendor ? ` · ${ua.device.vendor}` : '');
+    const result = await this.authService.loginWithGoogle(body.idToken, ipQuery, ubicacion, dispositivo);
     return res.status(200).json(result);
   }
 
@@ -104,8 +97,14 @@ export class AuthController {
       example: { idToken: 'eyJhbGciOi...' },
     },
   })
-  async loginUsuarioWithGoogle(@Body() body: { idToken: string }, @Res() res: Response) {
-    const result = await this.authService.loginUsuarioWithGoogle(body.idToken);
+  @UseInterceptors(IpDetailsInterceptor)
+  async loginUsuarioWithGoogle(@Body() body: { idToken: string }, @Res() res: Response, @Req() req: Request) {
+    const ua = req['ua'];
+    const ip = req['ipd'];
+    const ipQuery = ip?.query ?? 'Desconocida';
+    const ubicacion = (ip?.city && ip?.country) ? `${ip.city} - ${ip.country}` : 'Red interna';
+    const dispositivo = (ua?.os?.name ?? 'Desconocido') + (ua?.device?.vendor ? ` · ${ua.device.vendor}` : '');
+    const result = await this.authService.loginUsuarioWithGoogle(body.idToken, ipQuery, ubicacion, dispositivo);
     return res.status(200).json(result);
   }
 
