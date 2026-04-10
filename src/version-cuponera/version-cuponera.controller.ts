@@ -155,7 +155,6 @@ export class VersionCuponeraController {
   }
 
     @Get('buscar/nombre')
-  @Auth()
   @ApiOperation({ summary: 'Buscar versiones por nombre (búsqueda parcial)' })
   @ApiQuery({
     name: 'nombre',

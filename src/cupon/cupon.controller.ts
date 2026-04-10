@@ -266,7 +266,6 @@ export class CuponController {
   }
 
   @Get(':id/detalle')
-  @Auth()
 async getDetalle(@Param('id') id: string) {
   return this.cuponService.obtenerDetalleCupon(id);
 }
