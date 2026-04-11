@@ -292,7 +292,7 @@ export class HistoricoCuponService {
     this.logger.log(`[buscarPorIdDeUsuario] adminLocalId resuelto: ${adminLocalId}`);
 
     // Obtener todos los IDs del grupo (admin-local + su staff)
-    const usuarios = await this._usuariosModel.buscarTodosLosUsuariosPorResponsable(adminLocalId);
+    const usuarios = await this._usuariosModel.buscarTodosLosUsuariosPorResponsable(adminLocalId); 
     const idsGrupo = usuarios.map((u) => String(u._id));
     idsGrupo.push(adminLocalId);
 

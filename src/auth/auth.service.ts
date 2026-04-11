@@ -12,7 +12,7 @@ import * as jwt from 'jsonwebtoken';
 import axios from 'axios';
 import { ClientesService } from 'src/clientes/clientes.service';
 import { DateTimeService } from 'src/common/services/dateTimeService';
-import { JWT_EXPIRES_IN, JWT_SECRET } from 'src/config/config.env';
+import { JWT_EXPIRES_IN, JWT_SECRET, FIREBASE_API_KEY } from 'src/config/config.env';
 import { MailService } from 'src/mail/mail.service';
 import { UsuariosService } from 'src/usuarios/usuarios.service';
 import { RolesService } from 'src/roles/roles.service';
@@ -30,6 +30,7 @@ export class AuthService {
     private readonly dateService: DateTimeService,
     private readonly rolesService: RolesService,
     private readonly auditoria: AuditoriaService,
+    private readonly config: ConfigService,
   ) {}
 
   async loginUsuario(
@@ -142,13 +143,20 @@ export class AuthService {
 
   private async _verifyGoogleToken(idToken: string) {
     try {
-      const { data } = await axios.get(
-        `https://oauth2.googleapis.com/tokeninfo?id_token=${idToken}`,
+      const apiKey = this.config.get<string>(FIREBASE_API_KEY);
+      const { data } = await axios.post(
+        `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`,
+        { idToken },
       );
-      if (data.email_verified !== 'true') {
-        throw new UnauthorizedException('El email de Google no está verificado');
-      }
-      return data as { email: string; given_name?: string; family_name?: string; sub: string };
+      const user = data?.users?.[0];
+      if (!user) throw new UnauthorizedException('Token de Google inválido');
+      if (!user.emailVerified) throw new UnauthorizedException('El email de Google no está verificado');
+      return {
+        email: user.email as string,
+        given_name: user.displayName?.split(' ')[0] as string | undefined,
+        family_name: user.displayName?.split(' ').slice(1).join(' ') as string | undefined,
+        sub: user.localId as string,
+      };
     } catch (err: any) {
       if (err instanceof UnauthorizedException) throw err;
       throw new UnauthorizedException('Token de Google inválido');

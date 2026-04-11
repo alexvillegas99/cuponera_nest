@@ -24,7 +24,7 @@ export class RolesService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
-    await this.seed();
+   // await this.seed();
   }
 
   /** Semilla de roles por defecto — upsert para actualizar permisos en cada arranque */

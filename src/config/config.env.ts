@@ -13,6 +13,7 @@ export default () => ({
     bucketRegion: process.env.AWS_S3_BUCKET_REGION || '',
   },
   FIREBASE_CONFIG_BASE64: process.env.FIREBASE_CONFIG_BASE64 || '',
+  FIREBASE_API_KEY: process.env.FIREBASE_API_KEY || '',
   GMAIL_USER: process.env.GMAIL_USER || '',
   GMAIL_PASSWORD: process.env.GMAIL_PASSWORD || '',
   mail: {
@@ -38,6 +39,7 @@ export const AWS_SECRET_ACCESS_KEY = 'amazon3s.secretAccessKey';
 export const AWS_S3_BUCKET_NAME = 'amazon3s.bucketName';
 export const AWS_S3_BUCKET_REGION = 'amazon3s.bucketRegion';
 export const FIREBASE_CONFIG_BASE64 = 'FIREBASE_CONFIG_BASE64';
+export const FIREBASE_API_KEY = 'FIREBASE_API_KEY';
 export const GMAIL_USER = 'GMAIL_USER';
 export const GMAIL_PASSWORD = 'GMAIL_PASSWORD';
 
