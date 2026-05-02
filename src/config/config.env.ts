@@ -14,6 +14,7 @@ export default () => ({
   },
   FIREBASE_CONFIG_BASE64: process.env.FIREBASE_CONFIG_BASE64 || '',
   FIREBASE_API_KEY: process.env.FIREBASE_API_KEY || '',
+  APPLE_BUNDLE_ID: process.env.APPLE_BUNDLE_ID || 'com.pixelsmart.cuponeraapp',
   GMAIL_USER: process.env.GMAIL_USER || '',
   GMAIL_PASSWORD: process.env.GMAIL_PASSWORD || '',
   mail: {
@@ -40,6 +41,7 @@ export const AWS_S3_BUCKET_NAME = 'amazon3s.bucketName';
 export const AWS_S3_BUCKET_REGION = 'amazon3s.bucketRegion';
 export const FIREBASE_CONFIG_BASE64 = 'FIREBASE_CONFIG_BASE64';
 export const FIREBASE_API_KEY = 'FIREBASE_API_KEY';
+export const APPLE_BUNDLE_ID = 'APPLE_BUNDLE_ID';
 export const GMAIL_USER = 'GMAIL_USER';
 export const GMAIL_PASSWORD = 'GMAIL_PASSWORD';
 

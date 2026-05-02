@@ -9,6 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService, JwtModule } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import * as jwt from 'jsonwebtoken';
+import * as crypto from 'crypto';
 import axios from 'axios';
 import { ClientesService } from 'src/clientes/clientes.service';
 import { DateTimeService } from 'src/common/services/dateTimeService';
@@ -121,6 +122,7 @@ export class AuthService {
   ) {
     const cli: any = await this.clienteService.findByEmail(correo, true);
     if (!cli) throw new UnauthorizedException('Credenciales incorrectas');
+    if (cli.deleted) throw new UnauthorizedException('Esta cuenta ha sido eliminada');
 
     const ok = await this.clienteService.validatePassword(clave, cli.password);
     if (!ok) throw new UnauthorizedException('Credenciales incorrectas');
@@ -141,7 +143,8 @@ export class AuthService {
     return { accessToken, cliente: cli };
   }
 
-  private async _verifyGoogleToken(idToken: string) {
+  private async _verifyFirebaseToken(idToken: string, opts: { requireEmailVerified?: boolean; providerLabel?: string } = {}) {
+    const { requireEmailVerified = true, providerLabel = 'proveedor social' } = opts;
     try {
       const apiKey = this.config.get<string>(FIREBASE_API_KEY);
       const { data } = await axios.post(
@@ -149,8 +152,9 @@ export class AuthService {
         { idToken },
       );
       const user = data?.users?.[0];
-      if (!user) throw new UnauthorizedException('Token de Google inválido');
-      if (!user.emailVerified) throw new UnauthorizedException('El email de Google no está verificado');
+      if (!user) throw new UnauthorizedException(`Token de ${providerLabel} inválido`);
+      if (requireEmailVerified && !user.emailVerified)
+        throw new UnauthorizedException(`El email de ${providerLabel} no está verificado`);
       return {
         email: user.email as string,
         given_name: user.displayName?.split(' ')[0] as string | undefined,
@@ -159,7 +163,44 @@ export class AuthService {
       };
     } catch (err: any) {
       if (err instanceof UnauthorizedException) throw err;
-      throw new UnauthorizedException('Token de Google inválido');
+      throw new UnauthorizedException(`Token de ${providerLabel} inválido`);
+    }
+  }
+
+  private async _verifyGoogleToken(idToken: string) {
+    return this._verifyFirebaseToken(idToken, { requireEmailVerified: true, providerLabel: 'Google' });
+  }
+
+  private async _verifyAppleToken(identityToken: string) {
+    try {
+      const decoded = jwt.decode(identityToken, { complete: true });
+      if (!decoded || typeof decoded === 'string') {
+        throw new UnauthorizedException('Token de Apple inválido');
+      }
+
+      const { data: jwks } = await axios.get<{ keys: any[] }>('https://appleid.apple.com/auth/keys');
+      const key = jwks.keys.find((k) => k.kid === decoded.header.kid);
+      if (!key) throw new UnauthorizedException('Clave pública de Apple no encontrada');
+
+      const publicKey = crypto.createPublicKey({ key, format: 'jwk' });
+      const pem = publicKey.export({ type: 'spki', format: 'pem' }) as string;
+
+      const bundleId = this.config.get<string>('APPLE_BUNDLE_ID') ?? 'com.pixelsmart.cuponeraapp';
+      const payload = jwt.verify(identityToken, pem, {
+        algorithms: ['RS256'],
+        issuer: 'https://appleid.apple.com',
+        audience: bundleId,
+      }) as Record<string, any>;
+
+      return {
+        email: payload['email'] as string,
+        given_name: undefined as string | undefined,
+        family_name: undefined as string | undefined,
+        sub: payload['sub'] as string,
+      };
+    } catch (err: any) {
+      if (err instanceof UnauthorizedException) throw err;
+      throw new UnauthorizedException('Token de Apple inválido');
     }
   }
 
@@ -187,6 +228,57 @@ export class AuthService {
     }
 
     return { registered: false, googleData: { nombres, apellidos, email, googleId } };
+  }
+
+  async loginWithApple(idToken: string, ip: string, ubicacion: string, dispositivo: string) {
+    const ap = await this._verifyAppleToken(idToken);
+    const email = ap.email;
+    const nombres = ap.given_name ?? email.split('@')[0];
+    const apellidos = ap.family_name ?? '';
+
+    const cliente: any = await this.clienteService.findByEmail(email);
+
+    if (cliente) {
+      const accessToken = this.jwtService.sign({ sub: cliente._id, kind: 'CLIENTE' as const });
+      const fecha = this.dateService.formatEC();
+      const html = this.mailService.getTemplate('login.html', {
+        nombre: cliente.nombres + ' ' + cliente.apellidos,
+        fecha,
+        ubicacion,
+        ip,
+        dispositivo,
+      });
+      await this.mailService.enviar(cliente.email, 'Inicio de sesión', html);
+      return { registered: true, accessToken, cliente };
+    }
+
+    return { registered: false, appleData: { nombres, apellidos, email } };
+  }
+
+  async loginUsuarioWithApple(idToken: string, ip: string, ubicacion: string, dispositivo: string) {
+    const ap = await this._verifyAppleToken(idToken);
+
+    const user: any = await this.usuariosService.findByEmail(ap.email);
+    if (!user) {
+      throw new UnauthorizedException('No existe una cuenta de empresa con ese Apple ID.');
+    }
+    if (!user.estado) {
+      throw new UnauthorizedException('Usuario desactivado, comuníquese con el administrador.');
+    }
+
+    const accessToken = this.jwtService.sign({ sub: user._id, kind: 'USUARIO' as const });
+    const permisos = await this.rolesService.getPermisosForUsuario(user);
+    const fecha = this.dateService.formatEC();
+    const html = this.mailService.getTemplate('login.html', {
+      nombre: user.nombre,
+      fecha,
+      ubicacion,
+      ip,
+      dispositivo,
+    });
+    await this.mailService.enviar(user.email, 'Inicio de sesión', html);
+    const userObj = user.toObject ? user.toObject() : { ...user };
+    return { accessToken, user: { ...userObj, _id: userObj._id?.toString(), permisos } };
   }
 
   async loginUsuarioWithGoogle(idToken: string, ip: string, ubicacion: string, dispositivo: string) {
