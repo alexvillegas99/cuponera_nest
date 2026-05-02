@@ -172,25 +172,46 @@ export class AuthService {
   }
 
   private async _verifyAppleToken(identityToken: string) {
+    this.logger.log('🍎 [Apple] Iniciando verificación del identity token...');
+    this.logger.log(`🍎 [Apple] Token length: ${identityToken.length} chars`);
     try {
       const decoded = jwt.decode(identityToken, { complete: true });
       if (!decoded || typeof decoded === 'string') {
+        this.logger.error('🍎 [Apple] ❌ No se pudo decodificar el token');
         throw new UnauthorizedException('Token de Apple inválido');
       }
+      this.logger.log(`🍎 [Apple] Header decodificado: alg=${decoded.header.alg} kid=${decoded.header.kid}`);
 
+      this.logger.log('🍎 [Apple] Descargando claves públicas de Apple (JWKS)...');
       const { data: jwks } = await axios.get<{ keys: any[] }>('https://appleid.apple.com/auth/keys');
+      this.logger.log(`🍎 [Apple] JWKS recibido: ${jwks.keys.length} claves disponibles`);
+      this.logger.log(`🍎 [Apple] kids disponibles: ${jwks.keys.map((k) => k.kid).join(', ')}`);
+
       const key = jwks.keys.find((k) => k.kid === decoded.header.kid);
-      if (!key) throw new UnauthorizedException('Clave pública de Apple no encontrada');
+      if (!key) {
+        this.logger.error(`🍎 [Apple] ❌ No se encontró la clave con kid=${decoded.header.kid}`);
+        throw new UnauthorizedException('Clave pública de Apple no encontrada');
+      }
+      this.logger.log(`🍎 [Apple] Clave encontrada: kid=${key.kid}`);
 
       const publicKey = crypto.createPublicKey({ key, format: 'jwk' });
       const pem = publicKey.export({ type: 'spki', format: 'pem' }) as string;
+      this.logger.log('🍎 [Apple] Clave convertida a PEM correctamente');
 
       const bundleId = this.config.get<string>('APPLE_BUNDLE_ID') ?? 'com.pixelsmart.cuponeraapp';
+      this.logger.log(`🍎 [Apple] Verificando JWT — issuer: https://appleid.apple.com | audience: ${bundleId}`);
+
       const payload = jwt.verify(identityToken, pem, {
         algorithms: ['RS256'],
         issuer: 'https://appleid.apple.com',
         audience: bundleId,
       }) as Record<string, any>;
+
+      this.logger.log(`🍎 [Apple] ✅ JWT verificado correctamente`);
+      this.logger.log(`🍎 [Apple] sub: ${payload['sub']}`);
+      this.logger.log(`🍎 [Apple] email: ${payload['email']}`);
+      this.logger.log(`🍎 [Apple] email_verified: ${payload['email_verified']}`);
+      this.logger.log(`🍎 [Apple] exp: ${new Date((payload['exp'] as number) * 1000).toISOString()}`);
 
       return {
         email: payload['email'] as string,
@@ -200,6 +221,8 @@ export class AuthService {
       };
     } catch (err: any) {
       if (err instanceof UnauthorizedException) throw err;
+      this.logger.error(`🍎 [Apple] ❌ Error verificando token: ${err.message}`);
+      this.logger.error(`🍎 [Apple] Stack: ${err.stack}`);
       throw new UnauthorizedException('Token de Apple inválido');
     }
   }
@@ -231,14 +254,17 @@ export class AuthService {
   }
 
   async loginWithApple(idToken: string, ip: string, ubicacion: string, dispositivo: string) {
+    this.logger.log(`🍎 [Apple/Cliente] Login iniciado — ip: ${ip} | ubicacion: ${ubicacion} | dispositivo: ${dispositivo}`);
     const ap = await this._verifyAppleToken(idToken);
     const email = ap.email;
     const nombres = ap.given_name ?? email.split('@')[0];
     const apellidos = ap.family_name ?? '';
 
+    this.logger.log(`🍎 [Apple/Cliente] Buscando cliente por email: ${email}`);
     const cliente: any = await this.clienteService.findByEmail(email);
 
     if (cliente) {
+      this.logger.log(`🍎 [Apple/Cliente] ✅ Cliente encontrado: ${cliente._id} — generando accessToken`);
       const accessToken = this.jwtService.sign({ sub: cliente._id, kind: 'CLIENTE' as const });
       const fecha = this.dateService.formatEC();
       const html = this.mailService.getTemplate('login.html', {
@@ -249,23 +275,30 @@ export class AuthService {
         dispositivo,
       });
       await this.mailService.enviar(cliente.email, 'Inicio de sesión', html);
+      this.logger.log(`🍎 [Apple/Cliente] ✅ Email de notificación enviado a ${cliente.email}`);
       return { registered: true, accessToken, cliente };
     }
 
+    this.logger.log(`🍎 [Apple/Cliente] Cliente no encontrado con email: ${email} → retornando appleData para registro`);
     return { registered: false, appleData: { nombres, apellidos, email } };
   }
 
   async loginUsuarioWithApple(idToken: string, ip: string, ubicacion: string, dispositivo: string) {
+    this.logger.log(`🍎 [Apple/Usuario] Login iniciado — ip: ${ip} | ubicacion: ${ubicacion} | dispositivo: ${dispositivo}`);
     const ap = await this._verifyAppleToken(idToken);
 
+    this.logger.log(`🍎 [Apple/Usuario] Buscando usuario por email: ${ap.email}`);
     const user: any = await this.usuariosService.findByEmail(ap.email);
     if (!user) {
+      this.logger.warn(`🍎 [Apple/Usuario] ❌ No existe usuario con email: ${ap.email}`);
       throw new UnauthorizedException('No existe una cuenta de empresa con ese Apple ID.');
     }
     if (!user.estado) {
+      this.logger.warn(`🍎 [Apple/Usuario] ❌ Usuario desactivado: ${user._id}`);
       throw new UnauthorizedException('Usuario desactivado, comuníquese con el administrador.');
     }
 
+    this.logger.log(`🍎 [Apple/Usuario] ✅ Usuario encontrado: ${user._id} — generando accessToken`);
     const accessToken = this.jwtService.sign({ sub: user._id, kind: 'USUARIO' as const });
     const permisos = await this.rolesService.getPermisosForUsuario(user);
     const fecha = this.dateService.formatEC();
@@ -277,6 +310,7 @@ export class AuthService {
       dispositivo,
     });
     await this.mailService.enviar(user.email, 'Inicio de sesión', html);
+    this.logger.log(`🍎 [Apple/Usuario] ✅ Email de notificación enviado a ${user.email}`);
     const userObj = user.toObject ? user.toObject() : { ...user };
     return { accessToken, user: { ...userObj, _id: userObj._id?.toString(), permisos } };
   }
