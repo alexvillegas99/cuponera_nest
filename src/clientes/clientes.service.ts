@@ -344,6 +344,26 @@ export class ClientesService {
     }
   }
 
+  async softDeleteCliente(clienteId: string) {
+    const cliente = await this.clienteModel.findById(clienteId);
+    if (!cliente) throw new NotFoundException('Cliente no encontrado');
+    if (cliente.deleted) throw new BadRequestException('La cuenta ya fue eliminada');
+
+    const timestamp = Date.now();
+    const emailOriginal = cliente.email;
+    const emailAnonymized = `deleted_${timestamp}_${emailOriginal}`;
+
+    await this.clienteModel.findByIdAndUpdate(clienteId, {
+      deleted: true,
+      deletedAt: new Date(),
+      emailOriginal,
+      email: emailAnonymized,
+      estado: false,
+    });
+
+    return { ok: true };
+  }
+
   async resetPassword(email: string, password: string) {
     const u = await this.clienteModel.findOne({ email: email.toLowerCase() });
     if (!u) throw new NotFoundException('Cuenta no encontrada');

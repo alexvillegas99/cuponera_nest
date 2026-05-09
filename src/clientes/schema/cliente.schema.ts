@@ -58,6 +58,15 @@
 
     @Prop({ type: String })
     fcmToken?: string;
+
+    @Prop({ type: Boolean, default: false, index: true })
+    deleted?: boolean;
+
+    @Prop({ type: Date })
+    deletedAt?: Date;
+
+    @Prop({ type: String })
+    emailOriginal?: string;
   }
 
   export const ClienteSchema = SchemaFactory.createForClass(Cliente);

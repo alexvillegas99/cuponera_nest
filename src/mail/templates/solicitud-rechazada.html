@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="es" style="margin:0; padding:0;">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Tu solicitud de cuponera no fue aprobada</title>
+    <style>
+      .preheader { display:none !important; visibility:hidden; opacity:0; color:transparent; height:0; width:0; overflow:hidden; mso-hide:all; }
+      @media (max-width: 600px) {
+        .container { width:100% !important; }
+        .px-24 { padding-left:16px !important; padding-right:16px !important; }
+        .py-32 { padding-top:24px !important; padding-bottom:24px !important; }
+        .h1 { font-size:22px !important; line-height:28px !important; }
+      }
+      @media (prefers-color-scheme: dark) {
+        body, table, .bg-body { background:#0b1220 !important; }
+        .card { background:#0f172a !important; }
+        .muted { color:#94a3b8 !important; }
+        .title, .text { color:#e2e8f0 !important; }
+        .divider { border-color:#23324a !important; }
+        .info-box { background:#162032 !important; border-color:#23324a !important; }
+        .info-label { color:#94a3b8 !important; }
+        .info-value { color:#e2e8f0 !important; }
+        .nota-box { background:#2d1515 !important; border-color:#7f1d1d !important; }
+        .nota-text { color:#fca5a5 !important; }
+      }
+      a[x-apple-data-detectors] { color: inherit !important; text-decoration: none !important; }
+    </style>
+  </head>
+  <body style="margin:0; padding:0; background:#f2f4f7;" class="bg-body">
+    <div class="preheader">Hola {{nombre}}, tu solicitud de la cuponera "{{cuponera}}" no pudo ser aprobada en esta ocasión.</div>
+
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f2f4f7;">
+      <tr>
+        <td align="center" style="padding: 24px 12px;">
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" class="container" style="width:600px; max-width:600px;">
+
+            <!-- Header -->
+            <tr>
+              <td align="left" style="padding: 14px 20px; background:#010F23; border-radius:16px 16px 0 0;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td align="left" style="vertical-align:middle;">
+                      <img src="https://enjoystorage.s3.us-east-2.amazonaws.com/enjoy/logos/logoeny.png"
+                           alt="Enjoy" style="display:block; height:28px; max-height:28px;"
+                           onerror="this.style.display='none';" />
+                    </td>
+                    <td align="right" style="vertical-align:middle;">
+                      <span style="font:600 12px/1 Arial, sans-serif; color:#9fb3d9; letter-spacing:.6px; text-transform:uppercase;">Solicitud no aprobada</span>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- Card -->
+            <tr>
+              <td style="background:#ffffff; border-radius:0 0 16px 16px; box-shadow:0 6px 20px rgba(1,15,35,0.06);" class="card">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td class="px-24 py-32" style="padding:28px 24px;">
+
+                      <!-- Ícono -->
+                      <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                        <tr>
+                          <td width="56" height="56" align="center" valign="middle"
+                              style="width:56px; height:56px; background:#dc2626; border-radius:999px;">
+                            <span style="font:700 26px/56px Arial, sans-serif; color:#ffffff; display:inline-block;">✕</span>
+                          </td>
+                        </tr>
+                      </table>
+
+                      <h1 class="h1 title" style="margin:16px 0 8px; font:800 24px/32px Arial, sans-serif; color:#0F172A;">
+                        Tu solicitud no fue aprobada
+                      </h1>
+
+                      <p class="text" style="margin:0 0 20px; font:14px/22px Arial, sans-serif; color:#334155;">
+                        Hola <strong>{{nombre}}</strong>, lamentamos informarte que tu solicitud no pudo ser aprobada en esta ocasión.
+                      </p>
+
+                      <!-- Info box -->
+                      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"
+                             style="margin-bottom:20px; border-radius:12px; border:1px solid #e2e8f0; overflow:hidden;" class="info-box">
+                        <tr>
+                          <td style="padding:16px; background:#f8fafc;" class="info-box">
+                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                              <tr>
+                                <td style="padding-bottom:10px;">
+                                  <span style="font:600 11px/1 Arial, sans-serif; color:#64748b; text-transform:uppercase; letter-spacing:.4px;" class="info-label">Cuponera</span><br/>
+                                  <span style="font:700 16px/24px Arial, sans-serif; color:#0f172a;" class="info-value">{{cuponera}}</span>
+                                </td>
+                              </tr>
+                              <tr>
+                                <td>
+                                  <span style="font:600 11px/1 Arial, sans-serif; color:#64748b; text-transform:uppercase; letter-spacing:.4px;" class="info-label">Estado</span><br/>
+                                  <span style="display:inline-block; margin-top:4px; padding:4px 12px; background:#fee2e2; border-radius:999px; font:600 13px/1 Arial, sans-serif; color:#dc2626;">No aprobada</span>
+                                </td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+                      </table>
+
+                      <!-- Nota del admin (solo se muestra si hay nota) -->
+                      {{nota_seccion}}
+
+                      <p class="text" style="margin:0 0 8px; font:14px/22px Arial, sans-serif; color:#334155;">
+                        Si tienes dudas o crees que hubo un error, puedes contactarnos para más información.
+                      </p>
+
+                      <p class="muted" style="margin:20px 0 0; font:12px/18px Arial, sans-serif; color:#64748B;">
+                        Este es un correo automático, por favor no respondas a este mensaje.
+                      </p>
+
+                    </td>
+                  </tr>
+                </table>
+
+                <!-- Divider -->
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td style="padding:0 24px 16px;">
+                      <hr class="divider" style="border:none; border-top:1px solid #e2e8f0; margin:0;" />
+                    </td>
+                  </tr>
+                </table>
+
+                <!-- Footer -->
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td class="px-24" style="padding:0 24px 24px;">
+                      <p class="muted" style="margin:0; font:12px/18px Arial, sans-serif; color:#64748B;">
+                        ¿Necesitas ayuda? Escríbenos a
+                        <a href="mailto:info@ecuenjoy.com" style="color:#173A5E; text-decoration:none; font-weight:600;">info@ecuenjoy.com</a>
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- Disclaimer -->
+            <tr>
+              <td align="center" style="padding: 14px 10px;">
+                <p class="muted" style="margin:0; font:11px/16px Arial, sans-serif; color:#64748B;">
+                  © {{anio}} Enjoy. Todos los derechos reservados.
+                </p>
+              </td>
+            </tr>
+
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

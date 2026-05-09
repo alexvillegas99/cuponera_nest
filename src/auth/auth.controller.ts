@@ -108,6 +108,46 @@ export class AuthController {
     return res.status(200).json(result);
   }
 
+  @ApiOperation({ summary: 'Login de cliente con Apple (Firebase ID token)' })
+  @Post('apple/cliente')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { idToken: { type: 'string' } },
+      example: { idToken: 'eyJhbGciOi...' },
+    },
+  })
+  @UseInterceptors(IpDetailsInterceptor)
+  async loginWithApple(@Body() body: { idToken: string }, @Res() res: Response, @Req() req: Request) {
+    const ua = req['ua'];
+    const ip = req['ipd'];
+    const ipQuery = ip?.query ?? 'Desconocida';
+    const ubicacion = (ip?.city && ip?.country) ? `${ip.city} - ${ip.country}` : 'Red interna';
+    const dispositivo = (ua?.os?.name ?? 'Desconocido') + (ua?.device?.vendor ? ` · ${ua.device.vendor}` : '');
+    const result = await this.authService.loginWithApple(body.idToken, ipQuery, ubicacion, dispositivo);
+    return res.status(200).json(result);
+  }
+
+  @ApiOperation({ summary: 'Login de usuario/empresa con Apple (Firebase ID token)' })
+  @Post('apple/usuario')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { idToken: { type: 'string' } },
+      example: { idToken: 'eyJhbGciOi...' },
+    },
+  })
+  @UseInterceptors(IpDetailsInterceptor)
+  async loginUsuarioWithApple(@Body() body: { idToken: string }, @Res() res: Response, @Req() req: Request) {
+    const ua = req['ua'];
+    const ip = req['ipd'];
+    const ipQuery = ip?.query ?? 'Desconocida';
+    const ubicacion = (ip?.city && ip?.country) ? `${ip.city} - ${ip.country}` : 'Red interna';
+    const dispositivo = (ua?.os?.name ?? 'Desconocido') + (ua?.device?.vendor ? ` · ${ua.device.vendor}` : '');
+    const result = await this.authService.loginUsuarioWithApple(body.idToken, ipQuery, ubicacion, dispositivo);
+    return res.status(200).json(result);
+  }
+
   @Auth()
   @ApiOperation({ summary: 'Renueva el token de autenticación' })
   @Get('refresh-token')

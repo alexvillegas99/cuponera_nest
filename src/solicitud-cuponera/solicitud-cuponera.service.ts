@@ -7,6 +7,7 @@ import { CuponService } from '../cupon/cupon.service';
 import { VersionCuponeraService } from '../version-cuponera/version-cuponera.service';
 import { NotificacionesService } from '../notificaciones/notificaciones.service';
 import { ClientesService } from '../clientes/clientes.service';
+import { MailService } from '../mail/mail.service';
 
 @Injectable()
 export class SolicitudCuponeraService {
@@ -20,6 +21,7 @@ export class SolicitudCuponeraService {
     private readonly versionService: VersionCuponeraService,
     private readonly notificacionesService: NotificacionesService,
     private readonly clientesService: ClientesService,
+    private readonly mailService: MailService,
   ) {}
 
   async create(dto: any): Promise<SolicitudCuponera> {
@@ -96,17 +98,39 @@ export class SolicitudCuponeraService {
     );
     if (!doc) throw new NotFoundException('Solicitud no encontrada');
 
-    // Enviar notificación al cliente
+    // Enviar notificación push + correo al cliente
     const clienteId = (doc.cliente as any)?._id?.toString() ?? doc.cliente?.toString();
-    if (clienteId) {
-      const fcmToken = await this.clientesService.obtenerFcmToken(clienteId);
-      if (estado === EstadoSolicitud.APROBADO) {
+    const anio = new Date().getFullYear().toString();
+
+    if (estado === EstadoSolicitud.APROBADO) {
+      // Push
+      if (clienteId) {
+        const fcmToken = await this.clientesService.obtenerFcmToken(clienteId);
         await this.notificacionesService.enviarAToken(
           fcmToken,
           '¡Solicitud aprobada! 🎉',
           `Tu cuponera "${doc.cuponeraNombre}" fue aprobada. ¡Ya puedes usarla!`,
         );
-      } else if (estado === EstadoSolicitud.RECHAZADO) {
+      }
+      // Correo
+      try {
+        const html = this.mailService.getTemplate('solicitud-aprobada.html', {
+          nombre: doc.nombreCliente,
+          cuponera: doc.cuponeraNombre,
+          anio,
+        });
+        await this.mailService.enviar(
+          doc.emailCliente,
+          `¡Tu cuponera "${doc.cuponeraNombre}" fue aprobada! 🎉`,
+          html,
+        );
+      } catch (e) {
+        this.logger.error(`Error enviando correo de aprobación: ${e.message}`);
+      }
+    } else if (estado === EstadoSolicitud.RECHAZADO) {
+      // Push
+      if (clienteId) {
+        const fcmToken = await this.clientesService.obtenerFcmToken(clienteId);
         await this.notificacionesService.enviarAToken(
           fcmToken,
           'Solicitud no aprobada',
@@ -114,6 +138,33 @@ export class SolicitudCuponeraService {
             ? `Tu solicitud de "${doc.cuponeraNombre}" no fue aprobada: ${notaAdmin}`
             : `Tu solicitud de "${doc.cuponeraNombre}" no fue aprobada.`,
         );
+      }
+      // Correo
+      try {
+        const notaSeccion = notaAdmin
+          ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"
+               style="margin-bottom:20px; border-radius:12px; border:1px solid #fecaca; overflow:hidden;">
+              <tr>
+                <td style="padding:14px 16px; background:#fff1f1;">
+                  <p style="margin:0 0 4px; font:600 11px/1 Arial, sans-serif; color:#dc2626; text-transform:uppercase; letter-spacing:.4px;">Motivo</p>
+                  <p style="margin:0; font:14px/22px Arial, sans-serif; color:#7f1d1d;" class="nota-text">${notaAdmin}</p>
+                </td>
+              </tr>
+            </table>`
+          : '';
+        const html = this.mailService.getTemplate('solicitud-rechazada.html', {
+          nombre: doc.nombreCliente,
+          cuponera: doc.cuponeraNombre,
+          nota_seccion: notaSeccion,
+          anio,
+        });
+        await this.mailService.enviar(
+          doc.emailCliente,
+          `Tu solicitud de "${doc.cuponeraNombre}" no fue aprobada`,
+          html,
+        );
+      } catch (e) {
+        this.logger.error(`Error enviando correo de rechazo: ${e.message}`);
       }
     }
 

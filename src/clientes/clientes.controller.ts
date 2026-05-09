@@ -3,6 +3,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -19,6 +20,7 @@ import {
   ApiBody,
 } from '@nestjs/swagger';
 import { Auth } from 'src/auth/decorators/auth.decorator';
+import { GetUser } from 'src/auth/decorators/get-user.decorator';
 import { ClientesService } from './clientes.service';
 
 @ApiTags('Clientes')
@@ -214,5 +216,11 @@ export class ClientesController {
   async fcmToken(@Param('id') id: string, @Body('fcmToken') fcmToken: string) {
     await this.service.actualizarFcmToken(id, fcmToken);
     return { ok: true };
+  }
+
+  @Delete('me')
+  @Auth()
+  async deleteMe(@GetUser() user: any) {
+    return this.service.softDeleteCliente(user._id.toString());
   }
 }

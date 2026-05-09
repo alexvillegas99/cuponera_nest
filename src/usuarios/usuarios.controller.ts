@@ -24,6 +24,7 @@ import {
 import { Auth } from 'src/auth/decorators/auth.decorator';
 import { GetUser } from 'src/auth/decorators';
 import { AuditoriaService } from 'src/auditoria/auditoria.service';
+import { HistorialEstablecimientosService } from 'src/historial-establecimientos/historial-establecimientos.service';
 
 @ApiTags('Usuarios')
 @Controller('usuarios')
@@ -31,6 +32,7 @@ export class UsuariosController {
   constructor(
     private readonly usuariosService: UsuariosService,
     private readonly auditoria: AuditoriaService,
+    private readonly historialSvc: HistorialEstablecimientosService,
   ) {}
 
   @Post()
@@ -133,16 +135,10 @@ export class UsuariosController {
     @Query('q') q = '',
     @GetUser() user: any,
   ) {
-    const permisos: string[] = user?.permisos ?? [];
-    const esVendedor =
-      permisos.includes('establecimientos.editar') &&
-      !permisos.includes('dashboard.ver');
-    console.log('[findEstablecimientos] userId:', user?._id, '| rol:', user?.rol, '| permisos:', permisos, '| esVendedor:', esVendedor);
     return this.usuariosService.findEstablecimientos({
       page: Number(page),
       limit: Number(limit),
       q,
-      soloCreadorId: esVendedor ? String(user._id) : undefined,
     });
   }
   @Get('por-ciudades')
@@ -308,16 +304,30 @@ export class UsuariosController {
       dto = { detallePromocion: { imageBase64, logoBase64 } };
     }
 
-    // vendedor: no puede tocar las fotos, y solo sus propios establecimientos
+    // vendedor: no puede tocar las fotos (puede editar cualquier establecimiento)
     if (soloEditar) {
-      const establecimiento = await this.usuariosService.findByIdRaw(id);
-      if (String(establecimiento?.usuarioCreacion) !== String(user._id)) {
-        throw new Error('No tienes permiso para editar este establecimiento');
-      }
       if (dto.detallePromocion) {
         delete dto.detallePromocion.imageBase64;
         delete dto.detallePromocion.logoBase64;
       }
+    }
+
+    // Registrar historial para revisión del admin (solo para roles no-admin)
+    const esAdmin = permisos.includes('dashboard.ver');
+    if (!esAdmin) {
+      const actual = await this.usuariosService.findByIdRaw(id);
+      const datosAnteriores: Record<string, any> = {};
+      for (const key of Object.keys(dto)) {
+        datosAnteriores[key] = (actual as any)?.[key];
+      }
+      this.historialSvc.registrarCambio({
+        establecimientoId: id,
+        nombreEstablecimiento: (actual as any)?.nombre ?? id,
+        editadoPorId: user._id?.toString(),
+        editadoPorNombre: user.nombre ?? user.email,
+        datosAnteriores,
+        datosNuevos: { ...dto },
+      });
     }
 
     const result = await this.usuariosService.update(id, dto);

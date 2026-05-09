@@ -8,6 +8,7 @@ import { CuponModule } from '../cupon/cupon.module';
 import { VersionCuponeraModule } from '../version-cuponera/version-cuponera.module';
 import { NotificacionesModule } from '../notificaciones/notificaciones.module';
 import { ClientesModule } from '../clientes/clientes.module';
+import { MailModule } from '../mail/mail.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { ClientesModule } from '../clientes/clientes.module';
     VersionCuponeraModule,
     NotificacionesModule,
     ClientesModule,
+    MailModule,
   ],
   controllers: [SolicitudCuponeraController],
   providers: [SolicitudCuponeraService],

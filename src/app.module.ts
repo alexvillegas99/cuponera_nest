@@ -29,6 +29,7 @@ import { SolicitudCuponeraModule } from './solicitud-cuponera/solicitud-cuponera
 import { RolesModule } from './roles/roles.module';
 import { AuditoriaModule } from './auditoria/auditoria.module';
 import { PagosModule } from './pagos/pagos.module';
+import { HistorialEstablecimientosModule } from './historial-establecimientos/historial-establecimientos.module';
 
 @Module({
   imports: [
@@ -58,6 +59,7 @@ import { PagosModule } from './pagos/pagos.module';
     RolesModule,
     AuditoriaModule,
     PagosModule,
+    HistorialEstablecimientosModule,
   ],
   controllers: [AppController],
   providers: [AppService],
