@@ -181,6 +181,8 @@ export class AuthService {
         throw new UnauthorizedException('Token de Apple inválido');
       }
       this.logger.log(`🍎 [Apple] Header decodificado: alg=${decoded.header.alg} kid=${decoded.header.kid}`);
+      const rawPayload = decoded.payload as Record<string, any>;
+      this.logger.log(`🍎 [Apple] Payload claims — iss=${rawPayload.iss} | aud=${rawPayload.aud} | sub=${rawPayload.sub} | exp=${rawPayload.exp ? new Date(rawPayload.exp * 1000).toISOString() : 'N/A'}`);
 
       this.logger.log('🍎 [Apple] Descargando claves públicas de Apple (JWKS)...');
       const { data: jwks } = await axios.get<{ keys: any[] }>('https://appleid.apple.com/auth/keys');
@@ -221,9 +223,10 @@ export class AuthService {
       };
     } catch (err: any) {
       if (err instanceof UnauthorizedException) throw err;
-      this.logger.error(`🍎 [Apple] ❌ Error verificando token: ${err.message}`);
+      this.logger.error(`🍎 [Apple] ❌ Error verificando token: ${err.name}: ${err.message}`);
+      if (err.expiredAt) this.logger.error(`🍎 [Apple] expiredAt: ${err.expiredAt}`);
       this.logger.error(`🍎 [Apple] Stack: ${err.stack}`);
-      throw new UnauthorizedException('Token de Apple inválido');
+      throw new UnauthorizedException(`Token de Apple inválido (${err.name}: ${err.message})`);
     }
   }
 

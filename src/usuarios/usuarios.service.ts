@@ -345,6 +345,7 @@ export class UsuariosService {
         {
           ciudades: { $in: ciudadIds },
           detallePromocion: { $exists: true, $ne: null },
+          estado: true,
         },
         {
           detallePromocion: 1,
