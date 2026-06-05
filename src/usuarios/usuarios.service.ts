@@ -7,7 +7,9 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types, isValidObjectId } from 'mongoose';
 import * as bcrypt from 'bcrypt';
+import { validarClaveSegura } from '../common/validar-clave';
 import { Usuario, UsuarioDocument } from './schema/usuario.schema';
+import { Ciudad } from '../ciudad/schema/ciudad.schema';
 import { RolUsuario } from './enums/roles.enum';
 import {
   Comentario,
@@ -28,10 +30,26 @@ export class UsuariosService {
     @InjectModel(Usuario.name) private usuarioModel: Model<UsuarioDocument>,
     @InjectModel(Comentario.name)
     private readonly comentarioModel: Model<ComentarioDocument>,
+    @InjectModel(Ciudad.name)
+    private readonly ciudadModel: Model<any>,
     private readonly amazonS3Service: AmazonS3Service,
     private readonly mailService: MailService,
     private readonly dateService: DateTimeService,
   ) {}
+
+  /** Establecimientos con promo de TODA una provincia (expande a sus ciudades). */
+  async findByProvinciaConPromo(provinciaId: string) {
+    if (!isValidObjectId(provinciaId)) {
+      throw new BadRequestException('Provincia inválida');
+    }
+    const ciudades = await this.ciudadModel
+      .find({ provincia: new Types.ObjectId(provinciaId) })
+      .select('_id')
+      .lean();
+    const ids = ciudades.map((c: any) => c._id.toString());
+    if (!ids.length) return [];
+    return this.findByCiudadesConPromo(ids);
+  }
   private readonly logger = new Logger(UsuariosService.name);
 
   // ===== Helpers internos =====
@@ -48,25 +66,184 @@ export class UsuariosService {
     return uploaded?.url;
   }
 
+  /** Infiere el tipo de medio (image|video) desde el data URL, la URL o el type explícito */
+  private inferirTipoMedia(item: any): 'image' | 'video' {
+    if (item?.type === 'video' || item?.type === 'image') return item.type;
+    const src: string = item?.base64 || item?.url || '';
+    if (/^data:video\//i.test(src)) return 'video';
+    if (/\.(mp4|webm|mov|m4v|ogg)(\?|$)/i.test(src)) return 'video';
+    return 'image';
+  }
+
+  /**
+   * Procesa la galería del local (máx 5). Sube los items con base64 a S3 y conserva
+   * los que ya traen URL. No toca imageUrl. Devuelve [{ url, type, thumbnailUrl? }].
+   */
+  private async procesarGaleria(
+    galeria: any,
+    route: string,
+    prevGaleria?: any[],
+  ): Promise<any[] | undefined> {
+    // Si no viene la clave en el request, conservamos lo existente.
+    if (galeria === undefined) return prevGaleria;
+    if (!Array.isArray(galeria)) return prevGaleria ?? [];
+
+    const items = galeria.slice(0, 5);
+    const procesados = await Promise.all(
+      items.map(async (item: any) => {
+        const type = this.inferirTipoMedia(item);
+        const url = await this.procesarImagen(
+          item?.base64 || item?.url,
+          `${route}/${type === 'video' ? 'videos' : 'fotos'}`,
+        );
+        if (!url) return null;
+        const out: any = { url, type };
+        if (item?.thumbnailUrl) out.thumbnailUrl = item.thumbnailUrl;
+        return out;
+      }),
+    );
+
+    return procesados.filter(Boolean);
+  }
+
+  /**
+   * Procesa el catálogo del local (productos/servicios), SIN límite de cantidad.
+   * Sube los items con base64 a S3 y conserva los que ya traen URL.
+   * Devuelve [{ url, nombre?, descripcion? }]. Descarta items sin imagen.
+   */
+  private async procesarProductos(
+    productos: any,
+    route: string,
+    prevProductos?: any[],
+  ): Promise<any[] | undefined> {
+    // Si no viene la clave en el request, conservamos lo existente.
+    if (productos === undefined) return prevProductos;
+    if (!Array.isArray(productos)) return prevProductos ?? [];
+
+    const procesados = await Promise.all(
+      productos.map(async (item: any) => {
+        const url = await this.procesarImagen(
+          item?.base64 || item?.url,
+          `${route}/fotos`,
+        );
+        if (!url) return null;
+        const out: any = { url };
+        if (item?.nombre) out.nombre = String(item.nombre).trim();
+        if (item?.descripcion) out.descripcion = String(item.descripcion).trim();
+        return out;
+      }),
+    );
+
+    return procesados.filter(Boolean);
+  }
+
   private async procesarPromocion(
     promo: any,
     nombreLocal: string,
+    existente: any = {},
   ): Promise<any> {
     if (!promo) return promo;
+    const prev = existente || {};
     const safeName = nombreLocal?.replace(/\s+/g, '-').toLowerCase() || 'promo';
     const route = `enjoy/promos/${safeName}`;
 
-    return {
+    // Merge sobre lo existente para no borrar campos que no vienen en el request,
+    // y conservar las imágenes previas si no se sube una nueva.
+    const galeria = await this.procesarGaleria(
+      promo.galeria,
+      `${route}/galeria`,
+      prev.galeria,
+    );
+
+    const productos = await this.procesarProductos(
+      promo.productos,
+      `${route}/productos`,
+      prev.productos,
+    );
+
+    // Solo cuenta como "imagen nueva explícita" una subida base64 fresca.
+    // (Los fronts reenvían el imageUrl previo; eso NO debe bloquear la portada.)
+    const subioImagenNueva = !!promo.imageBase64;
+    let imageUrl = await this.procesarImagen(
+      promo.imageBase64 || promo.imageUrl || prev.imageUrl,
+      `${route}/imagenes`,
+    );
+
+    // La galería MANDA sobre la portada: si hay una foto en la galería y no se
+    // subió una imagen nueva en esta petición, la portada (imageUrl) es SIEMPRE
+    // la primera foto del array de la galería. Así las tarjetas/listados muestran
+    // exactamente la primera imagen de la galería.
+    if (!subioImagenNueva && Array.isArray(galeria) && galeria.length) {
+      const primeraFoto = galeria.find((m: any) => m?.type === 'image' && m?.url);
+      if (primeraFoto) imageUrl = primeraFoto.url;
+    }
+
+    const resultado = {
+      ...prev,
       ...promo,
       logoUrl: await this.procesarImagen(
-        promo.logoBase64 || promo.logoUrl,
+        promo.logoBase64 || promo.logoUrl || prev.logoUrl,
         `${route}/logos`,
       ),
-      imageUrl: await this.procesarImagen(
-        promo.imageBase64 || promo.imageUrl,
-        `${route}/imagenes`,
-      ),
+      imageUrl,
+      galeria,
+      productos,
     };
+
+    // Limpieza en S3: borra las imágenes que estaban antes y ya no se referencian
+    // (quitadas de galería/catálogo, logo o portada reemplazados). Se usa un diff de
+    // conjuntos sobre TODAS las urls para no borrar una imagen que sigue en uso
+    // (p.ej. imageUrl que coincide con la primera foto de la galería).
+    await this.limpiarImagenesHuerfanas(prev, resultado);
+
+    return resultado;
+  }
+
+  /** Recolecta todas las urls http de un detallePromocion (logo, portada, galería, catálogo). */
+  private _urlsDeDetalle(detalle: any): Set<string> {
+    const urls = new Set<string>();
+    const add = (u: any) => {
+      if (typeof u === 'string' && /^https?:\/\//i.test(u)) urls.add(u);
+    };
+    if (!detalle) return urls;
+    add(detalle.logoUrl);
+    add(detalle.imageUrl);
+    if (Array.isArray(detalle.galeria)) {
+      for (const m of detalle.galeria) {
+        add(m?.url);
+        add(m?.thumbnailUrl);
+      }
+    }
+    if (Array.isArray(detalle.productos)) {
+      for (const p of detalle.productos) add(p?.url);
+    }
+    return urls;
+  }
+
+  /**
+   * Borra de S3 las imágenes presentes en `prev` que ya no están en `nuevo`.
+   * Nunca lanza: cualquier fallo (S3, datos corruptos) se traga para no bloquear
+   * el guardado del establecimiento.
+   */
+  private async limpiarImagenesHuerfanas(prev: any, nuevo: any): Promise<void> {
+    try {
+      const antes = this._urlsDeDetalle(prev);
+      const ahora = this._urlsDeDetalle(nuevo);
+      const aBorrar = [...antes].filter(
+        (u) => !ahora.has(u) && /\.amazonaws\.com\//i.test(u),
+      );
+      if (!aBorrar.length) return;
+      await Promise.all(
+        aBorrar.map((u) =>
+          this.amazonS3Service.deleteImageByUrl(u).catch(() => false),
+        ),
+      );
+    } catch (err: any) {
+      // Borrado best-effort: registrar y continuar, jamás romper el guardado.
+      this.logger?.warn?.(
+        `Limpieza de imágenes huérfanas falló (ignorado): ${err?.message ?? err}`,
+      );
+    }
   }
 
   // ===== Helpers base existentes =====
@@ -218,12 +395,29 @@ export class UsuariosService {
   async findById(id: string): Promise<any> {
     const usuario = await this.usuarioModel
       .findById(id)
-      .populate('ciudades', 'nombre')
+      .populate({
+        path: 'ciudades',
+        select: 'nombre provincia',
+        populate: { path: 'provincia', select: 'nombre' },
+      })
       .populate('categorias', 'nombre')
       .lean();
     if (!usuario)
       throw new NotFoundException(`Usuario con ID ${id} no encontrado`);
-    return this.mapNombres(usuario);
+
+    // Derivar la provincia desde la 1ª ciudad ANTES de aplanar a nombres,
+    // para que los fronts puedan precargar el selector de provincia.
+    let provinciaId: string | null = null;
+    let provinciaNombre: string | null = null;
+    const c0: any = Array.isArray(usuario.ciudades)
+      ? usuario.ciudades[0]
+      : null;
+    if (c0 && c0.provincia) {
+      provinciaId = String(c0.provincia._id ?? c0.provincia);
+      provinciaNombre = c0.provincia.nombre ?? null;
+    }
+
+    return { ...this.mapNombres(usuario), provinciaId, provinciaNombre };
   }
 
   async delete(id: string): Promise<{ ok: true }> {
@@ -253,10 +447,18 @@ export class UsuariosService {
       dto.clave = bcrypt.hashSync(dto.clave, 10);
     }
 
+    // Documento actual: se usa para hacer merge de detallePromocion y no perder
+    // campos/imágenes que no vengan en el request.
+    const actual: any =
+      dto.detallePromocion || Array.isArray(dto.detallePromocionesExtra)
+        ? await this.usuarioModel.findById(id).lean()
+        : null;
+
     if (dto.detallePromocion) {
       dto.detallePromocion = await this.procesarPromocion(
         dto.detallePromocion,
-        dto.nombre,
+        dto.nombre ?? actual?.nombre,
+        actual?.detallePromocion,
       );
     }
     if (Array.isArray(dto.detallePromocionesExtra)) {
@@ -429,6 +631,12 @@ export class UsuariosService {
           description: u.detallePromocion.description,
           imageUrl: u.detallePromocion.imageUrl,
           logoUrl: u.detallePromocion.logoUrl,
+          galeria: Array.isArray(u.detallePromocion.galeria)
+            ? u.detallePromocion.galeria
+            : [],
+          productos: Array.isArray(u.detallePromocion.productos)
+            ? u.detallePromocion.productos
+            : [],
           isTwoForOne: u.detallePromocion.isTwoForOne,
           tags: u.detallePromocion.tags ?? [],
           rating: u.detallePromocion.rating,
@@ -504,12 +712,18 @@ export class UsuariosService {
   }
 
   async resetPassword(email: string, password: string) {
-    const u = await this.usuarioModel.findOne({ email: email.toLowerCase() });
+    validarClaveSegura(password);
+
+    const u = await this.usuarioModel
+      .findOne({ email: email.toLowerCase() })
+      .select('_id');
     if (!u) throw new NotFoundException('Cuenta no encontrada');
 
     const hash = await bcrypt.hash(password, 10);
-    u.clave = hash;
-    await u.save();
+    // updateOne (NO u.save()): solo setea la clave y evita disparar el hook
+    // pre('save') que revalida detallePromocion (días/horarios) y haría fallar
+    // el cambio de clave si el establecimiento tiene datos inconsistentes.
+    await this.usuarioModel.updateOne({ _id: u._id }, { $set: { clave: hash } });
     return { ok: true };
   }
 

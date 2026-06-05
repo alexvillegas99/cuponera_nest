@@ -14,6 +14,44 @@ export type DiaSemana =
   | 'sabado' // Saturday
   | 'domingo'; // Sunday
 
+/** Tipo de medio de la galería / Gallery media type */
+export type MediaType = 'image' | 'video';
+
+/**
+ * Item de galería del local (foto o video) / Venue gallery item (photo or video)
+ * Los videos solo se reproducen al entrar al detalle del establecimiento.
+ */
+@Schema({ _id: false })
+export class MediaItem {
+  /** URL final en S3 / Final S3 URL */
+  @Prop() url?: string;
+
+  /** Tipo de medio / Media type */
+  @Prop({ type: String, enum: ['image', 'video'], default: 'image' })
+  type?: MediaType;
+
+  /** Poster/miniatura opcional del video / Optional video poster */
+  @Prop() thumbnailUrl?: string;
+}
+export const MediaItemSchema = SchemaFactory.createForClass(MediaItem);
+
+/**
+ * Item del catálogo del local (producto/servicio) / Venue catalog item (product/service)
+ * Genérico: aplica a cualquier rubro. Cada item es una foto con nombre y descripción.
+ */
+@Schema({ _id: false })
+export class ProductoItem {
+  /** URL final en S3 / Final S3 URL */
+  @Prop() url?: string;
+
+  /** Nombre del producto / Product name */
+  @Prop() nombre?: string;
+
+  /** Descripción del producto / Product description */
+  @Prop() descripcion?: string;
+}
+export const ProductoItemSchema = SchemaFactory.createForClass(ProductoItem);
+
 /** Subdocumento con el detalle de una promoción (todo opcional) */
 @Schema({ _id: false })
 export class PromotionDetail {
@@ -34,6 +72,28 @@ export class PromotionDetail {
 
   /** URL de logo / Logo URL */
   @Prop() logoUrl?: string;
+
+  /**
+   * Galería del local: hasta 5 fotos o videos / Venue gallery: up to 5 photos or videos
+   * No reemplaza a imageUrl (que se mantiene por compatibilidad). Los videos solo se
+   * reproducen al entrar al detalle del establecimiento.
+   */
+  @Prop({
+    type: [MediaItemSchema],
+    default: undefined,
+    validate: {
+      validator: (v?: MediaItem[]) => !v || v.length <= 5,
+      message: 'galeria admite máximo 5 elementos',
+    },
+  })
+  galeria?: MediaItem[];
+
+  /**
+   * Catálogo del local: productos/servicios que ofrece, sin límite de cantidad.
+   * Venue catalog: products/services offered, no quantity limit. Genérico (no solo comida).
+   */
+  @Prop({ type: [ProductoItemSchema], default: undefined })
+  productos?: ProductoItem[];
 
   /** ¿Es 2x1? / Is two-for-one? */
   @Prop() isTwoForOne?: boolean;
@@ -216,36 +276,26 @@ UsuarioSchema.index({ promedioCalificacion: -1 });
 UsuarioSchema.pre<UsuarioDocument>('save', function (next) {
   const dp = this.detallePromocion as PromotionDetail | undefined;
 
+  // Coherencia: en vez de fallar, AUTO-CORREGIMOS para no bloquear el guardado
+  // (permite guardar secciones sueltas sin exigir días/horarios completos).
   if (dp) {
     if (dp.aplicaTodosLosDias) {
-      // Si aplica todos los días, limpiamos días específicos
-      // If applies every day, clear specific days
       dp.diasAplicables = undefined;
-    } else {
-      // Si NO aplica todos los días, debe haber al menos un día
-      // If NOT every day, must provide at least one day
-      if (!dp.diasAplicables || dp.diasAplicables.length === 0) {
-        return next(
-          new Error(
-            'detallePromocion.diasAplicables debe tener al menos un día cuando aplicaTodosLosDias=false',
-          ),
-        );
-      }
+    } else if (!dp.diasAplicables || dp.diasAplicables.length === 0) {
+      // Inconsistente → tratar como "aplica todos los días"
+      dp.aplicaTodosLosDias = true;
+      dp.diasAplicables = undefined;
     }
   }
 
-  // Para cada promo extra, aplicamos misma coherencia
   if (Array.isArray(this.detallePromocionesExtra)) {
     for (const p of this.detallePromocionesExtra) {
       if (!p) continue;
       if (p.aplicaTodosLosDias) {
         p.diasAplicables = undefined;
       } else if (!p.diasAplicables || p.diasAplicables.length === 0) {
-        return next(
-          new Error(
-            'detallePromocionesExtra[].diasAplicables debe tener al menos un día cuando aplicaTodosLosDias=false',
-          ),
-        );
+        p.aplicaTodosLosDias = true;
+        p.diasAplicables = undefined;
       }
     }
   }
@@ -266,19 +316,14 @@ UsuarioSchema.pre<any>('findOneAndUpdate', function (next) {
   const ensure = (promo: any, pathLabel: string) => {
     if (!promo) return;
     if (promo.aplicaTodosLosDias === true) {
-      if (!update.$set) update.$set = {};
-      // Limpiamos días si se marcó "todos los días"
       if (pathLabel === 'detallePromocion') {
-        update.$set['detallePromocion.diasAplicables'] = undefined;
+        promo.diasAplicables = undefined;
       }
-      // Para arrays, el front debería mandar el objeto coherente ya.
     } else if (promo.aplicaTodosLosDias === false) {
       if (!promo.diasAplicables || promo.diasAplicables.length === 0) {
-        return next(
-          new Error(
-            `${pathLabel}.diasAplicables debe tener al menos un día cuando aplicaTodosLosDias=false`,
-          ),
-        );
+        // AUTO-CORREGIR en vez de fallar: no bloquear el guardado por sección.
+        promo.aplicaTodosLosDias = true;
+        promo.diasAplicables = undefined;
       }
     }
   };

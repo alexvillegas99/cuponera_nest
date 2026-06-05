@@ -8,6 +8,7 @@ import {
   Comentario,
   ComentarioSchema,
 } from 'src/comentario/schema/comentario.schema';
+import { Ciudad, CiudadSchema } from 'src/ciudad/schema/ciudad.schema';
 import { S3Module } from 'src/amazon-s3/amazon-s3.module';
 
 @Module({
@@ -15,6 +16,7 @@ import { S3Module } from 'src/amazon-s3/amazon-s3.module';
     MongooseModule.forFeature([
       { name: Usuario.name, schema: UsuarioSchema },
       { name: Comentario.name, schema: ComentarioSchema },
+      { name: Ciudad.name, schema: CiudadSchema },
     ]),
     S3Module
   ],

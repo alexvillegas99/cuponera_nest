@@ -66,10 +66,17 @@ private todayParts() {
   }
 
   private extByContentType(ct: string) {
+    // Imágenes
     if (ct.includes('png')) return 'png';
     if (ct.includes('webp')) return 'webp';
     if (ct.includes('jpeg') || ct.includes('jpg')) return 'jpg';
     if (ct.includes('gif')) return 'gif';
+    // Videos (galería del local)
+    if (ct.includes('mp4')) return 'mp4';
+    if (ct.includes('webm')) return 'webm';
+    if (ct.includes('quicktime') || ct.includes('mov')) return 'mov';
+    if (ct.includes('m4v')) return 'm4v';
+    if (ct.includes('ogg')) return 'ogg';
     return 'bin';
   }
 

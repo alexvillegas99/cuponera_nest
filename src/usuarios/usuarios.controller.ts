@@ -182,6 +182,16 @@ export class UsuariosController {
     return this.usuariosService.findByCiudadesConPromo(ids);
   }
 
+  @Get('por-provincia')
+  @ApiOperation({
+    summary: 'Listar usuarios con promoción en TODA una provincia',
+    description: 'Expande la provincia a sus ciudades y devuelve los locales con promo.',
+  })
+  findByProvinciaConPromo(@Query('provincia') provincia: string) {
+    if (!provincia) return [];
+    return this.usuariosService.findByProvinciaConPromo(provincia);
+  }
+
   @Get()
   @Auth()
   @ApiOperation({ summary: 'Listar usuarios' })
@@ -298,17 +308,20 @@ export class UsuariosController {
       !permisos.includes('establecimientos.fotos') &&
       !permisos.includes('usuarios.editar');
 
-    // mkt-fotos: solo puede tocar imageBase64 y logoBase64 dentro de detallePromocion
+    // mkt-fotos: solo puede tocar imageBase64, logoBase64, galeria y productos dentro de detallePromocion
     if (soloFotos) {
-      const { imageBase64, logoBase64 } = dto?.detallePromocion ?? {};
-      dto = { detallePromocion: { imageBase64, logoBase64 } };
+      const { imageBase64, logoBase64, galeria, productos } =
+        dto?.detallePromocion ?? {};
+      dto = { detallePromocion: { imageBase64, logoBase64, galeria, productos } };
     }
 
-    // vendedor: no puede tocar las fotos (puede editar cualquier establecimiento)
+    // vendedor: no puede tocar las fotos, galería ni catálogo (puede editar cualquier establecimiento)
     if (soloEditar) {
       if (dto.detallePromocion) {
         delete dto.detallePromocion.imageBase64;
         delete dto.detallePromocion.logoBase64;
+        delete dto.detallePromocion.galeria;
+        delete dto.detallePromocion.productos;
       }
     }
 

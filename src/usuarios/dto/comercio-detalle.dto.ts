@@ -1,4 +1,19 @@
 // src/comercios/dto/comercio-mini.dto.ts
+export interface MediaItemDto {
+  url?: string;
+  type?: 'image' | 'video';
+  thumbnailUrl?: string;
+}
+
+/** Item del catálogo (producto/servicio): foto + nombre + descripción */
+export interface ProductoItemDto {
+  url?: string;
+  /** base64 entrante; el backend lo sube a S3 y lo reemplaza por url */
+  base64?: string;
+  nombre?: string;
+  descripcion?: string;
+}
+
 export interface PromoPrincipalDto {
   id?: string;
   title?: string;
@@ -6,6 +21,10 @@ export interface PromoPrincipalDto {
   description?: string;
   imageUrl?: string;
   logoUrl?: string;
+  /** Galería del local (hasta 5 fotos/videos); videos solo se reproducen en el detalle */
+  galeria?: MediaItemDto[];
+  /** Catálogo del local (productos/servicios), sin límite de cantidad */
+  productos?: ProductoItemDto[];
   isTwoForOne?: boolean;
   tags?: string[];
   rating?: number;
