@@ -522,14 +522,9 @@ export class CuponService {
         ? version.ciudadesDisponibles.map((c: any) => c?.nombre).filter(Boolean)
         : [];
 
-      const ciudadesVersionIds: Types.ObjectId[] = Array.isArray(
-        version.ciudadesDisponibles,
-      )
-        ? version.ciudadesDisponibles
-            .map((c: any) => c?._id)
-            .filter((id: any) => Types.ObjectId.isValid(id))
-            .map((id: any) => new Types.ObjectId(id))
-        : [];
+      // Ciudades de la versión EXPANDIENDO provincias completas (provinciasDisponibles).
+      const ciudadesVersionIds: Types.ObjectId[] =
+        await this._versionModel.ciudadIdsDeVersion(String(version._id));
 
       // Paso 2: Candidatos
       const ciudadFilter =
@@ -720,9 +715,23 @@ export class CuponService {
       .populate('version', 'nombre ciudadesDisponibles precio')
       .lean();
 
-    // 3) Obtener histórico de escaneos de este cliente en este local
+    // 3) Obtener histórico de escaneos en este local.
+    //    El escaneo puede haberlo hecho el admin-local o cualquiera de su staff
+    //    (el histórico se guarda con el id de quien escaneó). Para que el filtro
+    //    coincida con el anti-duplicado de registrarEscaneo, consideramos a todo
+    //    el grupo del local: admin-local + sus usuarios staff.
+    const adminLocal = await this._usuariosModel.getAdminLocalRaw(usuarioId);
+    const staffLocal =
+      await this._usuariosModel.buscarTodosLosUsuariosPorResponsable(
+        String(adminLocal._id),
+      );
+    const idsLocal = [
+      new Types.ObjectId(String(adminLocal._id)),
+      ...staffLocal.map((u: any) => new Types.ObjectId(String(u._id))),
+    ];
+
     const historicos = await this._historicoModel
-      .find({ usuario: new Types.ObjectId(usuarioId) })
+      .find({ usuario: { $in: idsLocal } })
       .select('cupon')
       .lean();
     const cuponesYaEscaneados = new Set(
