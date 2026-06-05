@@ -1,7 +1,21 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Categoria, CategoriaDocument } from './schema/categoria.schema';
+
+/** Normaliza un nombre para comparar duplicados (sin tildes/mayúsculas/espacios extra). */
+function normalizarNombre(nombre = ''): string {
+  return nombre
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
 @Injectable()
 export class CategoriaService {
@@ -10,7 +24,28 @@ export class CategoriaService {
     private readonly categoriaModel: Model<CategoriaDocument>,
   ) {}
 
-  create(data: Partial<Categoria>) {
+  /** Rechaza un nombre que ya existe (ignorando tildes, mayúsculas y espacios). */
+  private async assertNombreUnico(nombre?: string, excluirId?: string) {
+    const norm = normalizarNombre(nombre);
+    if (!norm) return;
+    const existentes = await this.categoriaModel
+      .find()
+      .select('_id nombre')
+      .lean();
+    const choca = existentes.find(
+      (c: any) =>
+        normalizarNombre(c.nombre) === norm &&
+        (!excluirId || c._id.toString() !== excluirId),
+    );
+    if (choca) {
+      throw new BadRequestException(
+        `Ya existe una categoría "${(choca as any).nombre}"`,
+      );
+    }
+  }
+
+  async create(data: Partial<Categoria>) {
+    await this.assertNombreUnico(data.nombre);
     return this.categoriaModel.create(data);
   }
 
@@ -29,6 +64,9 @@ export class CategoriaService {
   }
 
   async update(id: string, data: Partial<Categoria>) {
+    if (data.nombre !== undefined) {
+      await this.assertNombreUnico(data.nombre, id);
+    }
     const updated = await this.categoriaModel
       .findByIdAndUpdate(id, data, { new: true })
       .lean();
