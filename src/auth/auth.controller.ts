@@ -152,9 +152,9 @@ export class AuthController {
   @ApiOperation({ summary: 'Renueva el token de autenticación' })
   @Get('refresh-token')
   async refreshToken(@Res() res: Response, @GetUser() user: any) {
-    const result = await this.authService.renewToken(user._id);
+    const kind: 'USUARIO' | 'CLIENTE' = user?.kind === 'CLIENTE' ? 'CLIENTE' : 'USUARIO';
+    const result = this.authService.renewToken(user._id, kind);
     delete user.clkave;
-    console.log('user', user);
     return res.status(200).json({ user, token: result });
   }
 

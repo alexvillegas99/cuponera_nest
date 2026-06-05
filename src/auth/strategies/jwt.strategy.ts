@@ -25,20 +25,35 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   async validate(payload: any) {
     const { sub: id, kind } = payload as { sub: string; kind?: 'USUARIO' | 'CLIENTE' };
 
-    // Por compatibilidad: si no viene kind, asumimos USUARIO
     if (kind === 'CLIENTE') {
       const cliente = await this.clientesService.findById(id).catch(() => null);
       if (!cliente) throw new UnauthorizedException('Token inválido o cliente no encontrado');
       const clienteObj = (cliente as any).toObject ? (cliente as any).toObject() : { ...cliente };
       return { ...clienteObj, _id: clienteObj._id?.toString(), kind: 'CLIENTE', permisos: [] };
-    } else {
+    }
+
+    if (kind === 'USUARIO') {
       const usuario = await this.usuarioService.findById(id).catch(() => null);
       if (!usuario) throw new UnauthorizedException('Token inválido o usuario no encontrado');
-
-      // Resolver permisos del rol
       const permisos = await this.rolesService.getPermisosForUsuario(usuario);
       const usuarioObj = (usuario as any).toObject ? (usuario as any).toObject() : { ...usuario };
       return { ...usuarioObj, _id: usuarioObj._id?.toString(), kind: 'USUARIO', permisos };
     }
+
+    // Tokens emitidos sin `kind` (compatibilidad): probar usuario y, si no, cliente.
+    const usuario = await this.usuarioService.findById(id).catch(() => null);
+    if (usuario) {
+      const permisos = await this.rolesService.getPermisosForUsuario(usuario);
+      const usuarioObj = (usuario as any).toObject ? (usuario as any).toObject() : { ...usuario };
+      return { ...usuarioObj, _id: usuarioObj._id?.toString(), kind: 'USUARIO', permisos };
+    }
+
+    const cliente = await this.clientesService.findById(id).catch(() => null);
+    if (cliente) {
+      const clienteObj = (cliente as any).toObject ? (cliente as any).toObject() : { ...cliente };
+      return { ...clienteObj, _id: clienteObj._id?.toString(), kind: 'CLIENTE', permisos: [] };
+    }
+
+    throw new UnauthorizedException('Token inválido o cuenta no encontrada');
   }
 }

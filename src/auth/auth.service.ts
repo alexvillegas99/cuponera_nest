@@ -352,9 +352,9 @@ export class AuthService {
     return this.jwtService.sign(payload, { expiresIn: '7d' }); // Refresh token válido por 7 días
   }
 
-  renewToken(id: string) {
+  renewToken(id: string, kind: 'USUARIO' | 'CLIENTE' = 'USUARIO') {
     try {
-      const payload = { sub: id };
+      const payload = { sub: id, kind };
       return this.jwtService.sign(payload);
     } catch (error) {
       throw new UnauthorizedException('Refresh token inválido');

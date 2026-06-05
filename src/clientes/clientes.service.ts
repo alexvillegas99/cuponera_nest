@@ -10,6 +10,7 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { validarCedulaEc, validarRucEc } from './utils/identificacion-ec';
+import { validarClaveSegura } from '../common/validar-clave';
 import * as bcrypt from 'bcrypt';
 import {
   Cliente,
@@ -365,10 +366,12 @@ export class ClientesService {
   }
 
   async resetPassword(email: string, password: string) {
+    validarClaveSegura(password);
+
     const u = await this.clienteModel.findOne({ email: email.toLowerCase() });
     if (!u) throw new NotFoundException('Cuenta no encontrada');
 
-    u.password = password;
+    u.password = password; // se hashea en el pre-save del schema de Cliente
     await u.save();
     return { ok: true };
   }
