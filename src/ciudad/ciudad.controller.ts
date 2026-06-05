@@ -39,12 +39,14 @@ export class CiudadController {
   findAll(
     @Query('q') q?: string,
     @Query('estado') estado?: string,
+    @Query('provincia') provincia?: string,
     @Query('limit') limit = '50',
     @Query('page') page = '1',
   ) {
     return this.ciudadService.findAll({
       q,
       estado,
+      provincia,
       limit: Number(limit),
       page: Number(page),
     });
@@ -52,14 +54,14 @@ export class CiudadController {
 
   @Get('registro')
   @ApiOperation({ summary: 'Ciudades visibles para registro' })
-  findParaRegistro() {
-    return this.ciudadService.findParaRegistro();
+  findParaRegistro(@Query('provincia') provincia?: string) {
+    return this.ciudadService.findParaRegistro(provincia);
   }
 
   @Get('promociones')
   @ApiOperation({ summary: 'Ciudades activas para promociones' })
-  findParaPromociones() {
-    return this.ciudadService.findParaPromociones();
+  findParaPromociones(@Query('provincia') provincia?: string) {
+    return this.ciudadService.findParaPromociones(provincia);
   }
 
   @Get(':id')

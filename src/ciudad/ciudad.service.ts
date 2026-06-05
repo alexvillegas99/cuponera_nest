@@ -1,7 +1,15 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types, isValidObjectId } from 'mongoose';
 import { Ciudad, CiudadDocument } from './schema/ciudad.schema';
+
+/** Castea un id de provincia a ObjectId (evita el mismatch string vs ObjectId). */
+function provinciaFilter(provincia?: string) {
+  if (!provincia) return undefined;
+  return isValidObjectId(provincia)
+    ? new Types.ObjectId(provincia)
+    : provincia;
+}
 
 @Injectable()
 export class CiudadService {
@@ -17,17 +25,20 @@ export class CiudadService {
   async findAll(params: {
     q?: string;
     estado?: string;
+    provincia?: string;
     limit?: number;
     page?: number;
   }) {
-    const { q, estado, limit = 50, page = 1 } = params;
+    const { q, estado, provincia, limit = 50, page = 1 } = params;
 
     const filter: any = {};
     if (q) filter.nombre = new RegExp(q, 'i');
     if (estado !== undefined) filter.estado = estado === 'true';
+    if (provincia) filter.provincia = provinciaFilter(provincia);
 
     const items = await this.ciudadModel
       .find(filter)
+      .populate('provincia', 'nombre codigo')
       .limit(limit)
       .skip((page - 1) * limit)
       .lean();
@@ -43,7 +54,10 @@ export class CiudadService {
   }
 
   async findById(id: string) {
-    const ciudad = await this.ciudadModel.findById(id).lean();
+    const ciudad = await this.ciudadModel
+      .findById(id)
+      .populate('provincia', 'nombre codigo')
+      .lean();
     if (!ciudad) throw new NotFoundException('Ciudad no encontrada');
     return ciudad;
   }
@@ -71,16 +85,22 @@ export class CiudadService {
     return { ok: true };
   }
 
-  findParaRegistro() {
+  findParaRegistro(provincia?: string) {
+    const filter: any = { visibleParaRegistro: true };
+    if (provincia) filter.provincia = provinciaFilter(provincia);
     return this.ciudadModel
-      .find({ visibleParaRegistro: true })
+      .find(filter)
+      .populate('provincia', 'nombre codigo')
       .sort({ nombre: 1 })
       .lean();
   }
 
-  findParaPromociones() {
+  findParaPromociones(provincia?: string) {
+    const filter: any = { estado: true };
+    if (provincia) filter.provincia = provinciaFilter(provincia);
     return this.ciudadModel
-      .find({ estado: true })
+      .find(filter)
+      .populate('provincia', 'nombre codigo')
       .sort({ nombre: 1 })
       .lean();
   }

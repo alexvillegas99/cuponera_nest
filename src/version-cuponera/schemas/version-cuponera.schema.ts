@@ -20,6 +20,11 @@ export class VersionCuponera {
   // Disponible en estas ciudades (refs a Ciudad)
   @Prop({ type: [{ type: Types.ObjectId, ref: 'Ciudad' }], default: [] })
   ciudadesDisponibles: Types.ObjectId[];
+
+  // Disponible en estas provincias completas (refs a Provincia).
+  // Se expanden a sus ciudades al filtrar locales.
+  @Prop({ type: [{ type: Types.ObjectId, ref: 'Provincia' }], default: [] })
+  provinciasDisponibles: Types.ObjectId[];
 }
 
 export const VersionCuponeraSchema = SchemaFactory.createForClass(VersionCuponera);

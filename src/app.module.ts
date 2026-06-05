@@ -11,6 +11,7 @@ import { CuponModule } from './cupon/cupon.module';
 import { HistoricoCuponModule } from './historico-cupon/historico-cupon.module';
 import { AuthModule } from './auth/auth.module';
 import { CiudadModule } from './ciudad/ciudad.module';
+import { ProvinciaModule } from './provincia/provincia.module';
 import { CategoriaModule } from './categoria/categoria.module';
 import { ComentarioModule } from './comentario/comentario.module';
 import { ClientesModule } from './clientes/clientes.module';
@@ -42,6 +43,7 @@ import { HistorialEstablecimientosModule } from './historial-establecimientos/hi
     HistoricoCuponModule,
     AuthModule,
     CiudadModule,
+    ProvinciaModule,
     CategoriaModule,
     ComentarioModule,
     ClientesModule,

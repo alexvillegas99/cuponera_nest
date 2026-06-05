@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import { Document, Types } from 'mongoose';
 
 export type CiudadDocument = Ciudad & Document;
 
@@ -7,6 +7,10 @@ export type CiudadDocument = Ciudad & Document;
 export class Ciudad {
   @Prop({ required: true, trim: true })
   nombre: string;
+
+  /** Provincia a la que pertenece la ciudad (cantón) */
+  @Prop({ type: Types.ObjectId, ref: 'Provincia' })
+  provincia?: Types.ObjectId;
 
   @Prop({ default: true })
   estado: boolean;
@@ -23,3 +27,4 @@ export const CiudadSchema = SchemaFactory.createForClass(Ciudad);
 // índices útiles
 CiudadSchema.index({ nombre: 1 }, { unique: true });
 CiudadSchema.index({ visibleParaRegistro: 1 });
+CiudadSchema.index({ provincia: 1 });

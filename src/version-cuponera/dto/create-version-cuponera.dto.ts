@@ -38,4 +38,12 @@ export class CreateVersionCuponeraDto {
   @IsOptional()
   @IsArray()
   ciudadesDisponibles?: string[];
+
+  @ApiPropertyOptional({
+    example: ['66d63c8f8baf234aa11e0001'],
+    description: 'Provincias completas (se expanden a sus ciudades)',
+  })
+  @IsOptional()
+  @IsArray()
+  provinciasDisponibles?: string[];
 }
