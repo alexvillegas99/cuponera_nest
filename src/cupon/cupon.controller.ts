@@ -204,6 +204,35 @@ export class CuponController {
     return this.cuponService.findDisponiblesParaLocal(clienteId, usuarioId);
   }
 
+  @Get('clientes/:clienteId/locales-disponibles')
+  @ApiOperation({
+    summary:
+      'Ids de locales donde el cliente tiene cupón disponible para canjear',
+  })
+  findLocalesDisponibles(@Param('clienteId') clienteId: string) {
+    return this.cuponService.findLocalesDisponibles(clienteId);
+  }
+
+  @Get('clientes/:clienteId/cuponeras-paginado')
+  @ApiOperation({
+    summary: 'Cuponeras del cliente (paginado, aditivo)',
+  })
+  listarCuponerasPaginado(
+    @Param('clienteId') clienteId: string,
+    @Query('soloActivas') soloActivas = 'true',
+    @Query('q') q?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.cuponService.obtenerCuponerasPorClientePaginado({
+      clienteId,
+      soloActivas: soloActivas !== 'false',
+      q,
+      page: page ? Number(page) : 1,
+      limit: limit ? Number(limit) : 30,
+    });
+  }
+
   @Post('clientes/:clienteId/cupones/:cuponId/asignar')
   @ApiOperation({
     summary: 'Asignar un cupón específico a un cliente',

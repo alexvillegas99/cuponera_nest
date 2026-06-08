@@ -594,6 +594,231 @@ export class UsuariosService {
     });
   }
 
+  // ===== Paginación de locales con promo (endpoint nuevo, aditivo) =====
+
+  private _escapeRegex(s: string): string {
+    return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  /** Distancia en metros entre dos coordenadas (haversine). */
+  private _haversine(
+    lat1: number,
+    lng1: number,
+    lat2?: number,
+    lng2?: number,
+  ): number {
+    if (lat2 == null || lng2 == null) return Number.POSITIVE_INFINITY;
+    const R = 6371000;
+    const toRad = (x: number) => (x * Math.PI) / 180;
+    const dLat = toRad(lat2 - lat1);
+    const dLng = toRad(lng2 - lng1);
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos(toRad(lat1)) *
+        Math.cos(toRad(lat2)) *
+        Math.sin(dLng / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(a));
+  }
+
+  /** Mapea un doc de usuario al shape de promo que consume la app. */
+  private _mapPromoDoc(d: any) {
+    const ratingFromRoot =
+      typeof d?.promedioCalificacion === 'number'
+        ? d.promedioCalificacion
+        : null;
+    const negocioIdStr = String(d._id);
+    const detalle = {
+      ...(d?.detallePromocion ?? {}),
+      id: negocioIdStr,
+      rating: ratingFromRoot,
+    };
+    return {
+      _id: negocioIdStr,
+      detallePromocion: detalle,
+      ubicacion: d.ubicacion ?? null,
+      ciudades: Array.isArray(d.ciudades)
+        ? d.ciudades
+            .map((c: any) => (typeof c === 'string' ? c : c?.nombre))
+            .filter(Boolean)
+        : [],
+      categorias: Array.isArray(d.categorias)
+        ? d.categorias
+            .map((c: any) => (typeof c === 'string' ? c : c?.nombre))
+            .filter(Boolean)
+        : [],
+    };
+  }
+
+  /**
+   * Locales con promo paginados, con filtros opcionales por provincia(s),
+   * ciudad(es), nombre (q), Hoy (isToday) y Flash (isFlash).
+   * Defaults seguros: page=1, limit=30. Endpoint NUEVO — no afecta a los
+   * endpoints existentes que usan las apps ya publicadas.
+   */
+  async findPromosPaginado(params: {
+    provincias?: string;
+    ciudades?: string;
+    localIds?: string;
+    q?: string;
+    isToday?: boolean;
+    isFlash?: boolean;
+    lat?: number;
+    lng?: number;
+    page?: number;
+    limit?: number;
+  }): Promise<{
+    data: any[];
+    total: number;
+    page: number;
+    limit: number;
+    hasMore: boolean;
+  }> {
+    const page = Math.max(1, Number(params.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(params.limit) || 30));
+
+    // 1) Resolver ciudades del scope
+    let cityIds: string[] = [];
+    if (params.ciudades) {
+      cityIds = params.ciudades
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+    } else if (params.provincias) {
+      const provIds = params.provincias
+        .split(',')
+        .map((s) => s.trim())
+        .filter((id) => isValidObjectId(id))
+        .map((id) => new Types.ObjectId(id));
+      if (provIds.length) {
+        const ciudades = await this.ciudadModel
+          .find({ provincia: { $in: provIds } })
+          .select('_id')
+          .lean();
+        cityIds = ciudades.map((c: any) => String(c._id));
+      }
+    }
+
+    if (!cityIds.length) {
+      return { data: [], total: 0, page, limit, hasMore: false };
+    }
+
+    // 2) Filtro base
+    const filter: any = {
+      ciudades: { $in: cityIds },
+      detallePromocion: { $exists: true, $ne: null },
+      estado: true,
+    };
+
+    // Búsqueda por nombre (dentro del scope)
+    if (params.q && params.q.trim()) {
+      const rx = new RegExp(this._escapeRegex(params.q.trim()), 'i');
+      filter.$or = [
+        { nombre: rx },
+        { 'detallePromocion.title': rx },
+        { 'detallePromocion.placeName': rx },
+        { 'detallePromocion.tags': rx },
+      ];
+    }
+
+    if (params.isFlash) {
+      filter['detallePromocion.isFlash'] = true;
+    }
+
+    if (params.isToday) {
+      const dias = [
+        'domingo',
+        'lunes',
+        'martes',
+        'miercoles',
+        'jueves',
+        'viernes',
+        'sabado',
+      ];
+      const hoy = dias[new Date().getDay()];
+      filter.$and = [
+        ...(filter.$and ?? []),
+        {
+          $or: [
+            { 'detallePromocion.aplicaTodosLosDias': true },
+            { 'detallePromocion.diasAplicables': hoy },
+          ],
+        },
+      ];
+    }
+
+    // Filtro por ids de locales (soloConCupon: locales con canje disponible).
+    if (params.localIds != null) {
+      const lids = params.localIds
+        .split(',')
+        .map((s) => s.trim())
+        .filter((id) => isValidObjectId(id))
+        .map((id) => new Types.ObjectId(id));
+      if (!lids.length) {
+        return { data: [], total: 0, page, limit, hasMore: false };
+      }
+      filter._id = { $in: lids };
+    }
+
+    const projection: any = {
+      detallePromocion: 1,
+      ciudades: 1,
+      categorias: 1,
+      promedioCalificacion: 1,
+      ubicacion: 1,
+    };
+
+    // 3a) Orden por distancia (si hay coordenadas): ordena el match completo
+    //     por cercanía y luego pagina.
+    if (params.lat != null && params.lng != null) {
+      const all = await this.usuarioModel.find(filter, { ubicacion: 1 }).lean();
+      const ordenados = all
+        .map((d: any) => ({
+          id: String(d._id),
+          dist: this._haversine(
+            params.lat!,
+            params.lng!,
+            d.ubicacion?.lat,
+            d.ubicacion?.lng,
+          ),
+        }))
+        .sort((a, b) => a.dist - b.dist);
+      const total = ordenados.length;
+      const pageIds = ordenados
+        .slice((page - 1) * limit, page * limit)
+        .map((x) => x.id);
+      const docs = await this.usuarioModel
+        .find({ _id: { $in: pageIds } }, projection)
+        .populate('ciudades', 'nombre')
+        .populate('categorias', 'nombre')
+        .lean();
+      const byId = new Map(docs.map((d: any) => [String(d._id), d]));
+      const data = pageIds
+        .map((id) => byId.get(id))
+        .filter(Boolean)
+        .map((d: any) => this._mapPromoDoc(d));
+      return { data, total, page, limit, hasMore: page * limit < total };
+    }
+
+    // 3b) Orden estable por _id (default).
+    const total = await this.usuarioModel.countDocuments(filter);
+    const docs = await this.usuarioModel
+      .find(filter, projection)
+      .populate('ciudades', 'nombre')
+      .populate('categorias', 'nombre')
+      .sort({ _id: 1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .lean();
+
+    return {
+      data: docs.map((d: any) => this._mapPromoDoc(d)),
+      total,
+      page,
+      limit,
+      hasMore: page * limit < total,
+    };
+  }
+
   async obtenerInformacionComercioMini(
     usuarioId: string,
   ): Promise<ComercioMiniResponse> {

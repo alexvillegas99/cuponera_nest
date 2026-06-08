@@ -68,6 +68,13 @@ export class AuthController {
     return res.status(200).json(result);
   }
 
+  @ApiOperation({ summary: 'Registro de cliente con auto-login (devuelve accessToken)' })
+  @Post('register/cliente')
+  async registerCliente(@Body() dto: any, @Res() res: Response) {
+    const result = await this.authService.registerCliente(dto);
+    return res.status(201).json(result);
+  }
+
   @ApiOperation({ summary: 'Login de cliente con Google (Firebase ID token)' })
   @Post('google/cliente')
   @ApiBody({

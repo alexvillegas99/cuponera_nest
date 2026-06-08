@@ -192,6 +192,39 @@ export class UsuariosController {
     return this.usuariosService.findByProvinciaConPromo(provincia);
   }
 
+  @Get('promos')
+  @ApiOperation({
+    summary: 'Locales con promoción (paginado, aditivo)',
+    description:
+      'Paginado por provincia(s)/ciudad(es), con búsqueda por nombre (q), Hoy (isToday) y Flash (isFlash). ' +
+      'Devuelve { data, total, page, limit, hasMore }. No reemplaza a por-provincia/por-ciudades.',
+  })
+  findPromosPaginado(
+    @Query('provincias') provincias?: string,
+    @Query('ciudades') ciudades?: string,
+    @Query('localIds') localIds?: string,
+    @Query('q') q?: string,
+    @Query('isToday') isToday?: string,
+    @Query('isFlash') isFlash?: string,
+    @Query('lat') lat?: string,
+    @Query('lng') lng?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.usuariosService.findPromosPaginado({
+      provincias,
+      ciudades,
+      localIds,
+      q,
+      isToday: isToday === 'true',
+      isFlash: isFlash === 'true',
+      lat: lat != null && lat !== '' ? Number(lat) : undefined,
+      lng: lng != null && lng !== '' ? Number(lng) : undefined,
+      page: page ? Number(page) : 1,
+      limit: limit ? Number(limit) : 30,
+    });
+  }
+
   @Get()
   @Auth()
   @ApiOperation({ summary: 'Listar usuarios' })

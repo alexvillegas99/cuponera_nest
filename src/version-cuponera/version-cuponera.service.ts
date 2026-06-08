@@ -148,6 +148,81 @@ export class VersionCuponeraService {
     return resultados.map((d) => this.toNames(d));
   }
 
+  /**
+   * Catálogo de versiones paginado (endpoint nuevo, aditivo): nombre (q),
+   * estado, provincia(s)/ciudad(es), page/limit. No reemplaza buscarPorNombre.
+   */
+  async buscarPaginado(params: {
+    nombre?: string;
+    estado?: string;
+    provincias?: string;
+    ciudades?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<{
+    data: any[];
+    total: number;
+    page: number;
+    limit: number;
+    hasMore: boolean;
+  }> {
+    const page = Math.max(1, Number(params.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(params.limit) || 30));
+    const filtro: any = {};
+
+    if (params.nombre && params.nombre.trim() !== '') {
+      filtro.nombre = {
+        $regex: params.nombre.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+        $options: 'i',
+      };
+    }
+    if (params.estado !== undefined) {
+      filtro.estado = params.estado === 'true' || params.estado === '1';
+    }
+
+    if (params.ciudades) {
+      const cityIds = params.ciudades
+        .split(',')
+        .map((s) => s.trim())
+        .filter((id) => Types.ObjectId.isValid(id))
+        .map((id) => new Types.ObjectId(id));
+      if (cityIds.length) filtro.ciudadesDisponibles = { $in: cityIds };
+    } else if (params.provincias) {
+      const provIds = params.provincias
+        .split(',')
+        .map((s) => s.trim())
+        .filter((id) => Types.ObjectId.isValid(id))
+        .map((id) => new Types.ObjectId(id));
+      if (provIds.length) {
+        const ciudades = await this.ciudadModel
+          .find({ provincia: { $in: provIds } })
+          .select('_id')
+          .lean();
+        const cityIds = ciudades.map((c: any) => c._id);
+        filtro.$or = [
+          { provinciasDisponibles: { $in: provIds } },
+          { ciudadesDisponibles: { $in: cityIds } },
+        ];
+      }
+    }
+
+    const total = await this.versionModel.countDocuments(filtro);
+    const docs = await this.versionModel
+      .find(filtro)
+      .populate(POPULATE_REFS)
+      .sort({ nombre: 1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .lean();
+    return {
+      data: docs.map((d) => this.toNames(d)),
+      total,
+      page,
+      limit,
+      hasMore: page * limit < total,
+    };
+  }
+
   /** Ids de ciudad (ObjectId) de una versión, expandiendo provincias. Uso externo. */
   async ciudadIdsDeVersion(versionId: string): Promise<Types.ObjectId[]> {
     const version = await this.findByIdRaw(versionId);

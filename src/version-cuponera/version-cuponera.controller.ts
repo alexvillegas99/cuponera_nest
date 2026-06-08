@@ -197,4 +197,26 @@ export class VersionCuponeraController {
     return this.versionService.buscarPorNombre(nombre, estado);
   }
 
+  @Get('buscar/paginado')
+  @ApiOperation({
+    summary: 'Catálogo de versiones paginado (nombre, provincia/ciudad)',
+  })
+  buscarPaginado(
+    @Query('nombre') nombre?: string,
+    @Query('estado') estado?: string,
+    @Query('provincias') provincias?: string,
+    @Query('ciudades') ciudades?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.versionService.buscarPaginado({
+      nombre,
+      estado,
+      provincias,
+      ciudades,
+      page: page ? Number(page) : 1,
+      limit: limit ? Number(limit) : 30,
+    });
+  }
+
 }

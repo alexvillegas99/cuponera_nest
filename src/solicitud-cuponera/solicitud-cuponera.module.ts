@@ -9,11 +9,14 @@ import { VersionCuponeraModule } from '../version-cuponera/version-cuponera.modu
 import { NotificacionesModule } from '../notificaciones/notificaciones.module';
 import { ClientesModule } from '../clientes/clientes.module';
 import { MailModule } from '../mail/mail.module';
+import { ConfiguracionModule } from '../configuracion/configuracion.module';
+import { Usuario, UsuarioSchema } from '../usuarios/schema/usuario.schema';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: SolicitudCuponera.name, schema: SolicitudCuponeraSchema },
+      { name: Usuario.name, schema: UsuarioSchema },
     ]),
     S3Module,
     CuponModule,
@@ -21,6 +24,7 @@ import { MailModule } from '../mail/mail.module';
     NotificacionesModule,
     ClientesModule,
     MailModule,
+    ConfiguracionModule,
   ],
   controllers: [SolicitudCuponeraController],
   providers: [SolicitudCuponeraService],

@@ -124,6 +124,13 @@ export class AuthService {
     if (!cli) throw new UnauthorizedException('Credenciales incorrectas');
     if (cli.deleted) throw new UnauthorizedException('Esta cuenta ha sido eliminada');
 
+    // Cuenta creada con redes sociales (sin clave configurada).
+    if (!cli.password) {
+      throw new UnauthorizedException(
+        'Tu usuario no tiene configurada una clave. Realiza la recuperación de credenciales.',
+      );
+    }
+
     const ok = await this.clienteService.validatePassword(clave, cli.password);
     if (!ok) throw new UnauthorizedException('Credenciales incorrectas');
 
@@ -141,6 +148,18 @@ export class AuthService {
     });
     await this.mailService.enviar(cli.email, 'Inicio de sesión', html);
     return { accessToken, cliente: cli };
+  }
+
+  /**
+   * Registra un cliente y devuelve un accessToken para iniciar sesión de
+   * inmediato (auto-login). Sirve tanto para registro con clave como con
+   * redes sociales (en ese caso el cliente queda sin clave).
+   */
+  async registerCliente(dto: any) {
+    const cliente: any = await this.clienteService.create(dto);
+    const payload = { sub: cliente._id, kind: 'CLIENTE' as const };
+    const accessToken = this.jwtService.sign(payload);
+    return { accessToken, cliente };
   }
 
   private async _verifyFirebaseToken(idToken: string, opts: { requireEmailVerified?: boolean; providerLabel?: string } = {}) {

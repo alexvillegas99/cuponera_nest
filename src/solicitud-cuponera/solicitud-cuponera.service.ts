@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { SolicitudCuponera, EstadoSolicitud } from './schema/solicitud-cuponera.schema';
@@ -8,6 +13,8 @@ import { VersionCuponeraService } from '../version-cuponera/version-cuponera.ser
 import { NotificacionesService } from '../notificaciones/notificaciones.service';
 import { ClientesService } from '../clientes/clientes.service';
 import { MailService } from '../mail/mail.service';
+import { ConfiguracionService } from '../configuracion/configuracion.service';
+import { Usuario } from '../usuarios/schema/usuario.schema';
 
 @Injectable()
 export class SolicitudCuponeraService {
@@ -22,6 +29,9 @@ export class SolicitudCuponeraService {
     private readonly notificacionesService: NotificacionesService,
     private readonly clientesService: ClientesService,
     private readonly mailService: MailService,
+    private readonly configuracionService: ConfiguracionService,
+    @InjectModel(Usuario.name)
+    private readonly usuarioModel: Model<Usuario>,
   ) {}
 
   async create(dto: any): Promise<SolicitudCuponera> {
@@ -35,12 +45,80 @@ export class SolicitudCuponeraService {
       comprobanteUrl = result.url;
     }
 
-    return this.model.create({
+    const solicitud = await this.model.create({
       ...dto,
       comprobanteBase64: undefined,
       comprobanteUrl,
       estado: EstadoSolicitud.PENDIENTE,
     });
+
+    // Notificar a los admins (best-effort: no bloquea ni rompe la creación).
+    this._notificarAdminNuevaSolicitud(solicitud).catch((e) =>
+      this.logger.error(`Error notificando nueva solicitud: ${e?.message}`),
+    );
+
+    return solicitud;
+  }
+
+  /** Correo + push a la lista de admins configurada (solicitud_notif_emails). */
+  private async _notificarAdminNuevaSolicitud(solicitud: any) {
+    let emails: string[] = [];
+    try {
+      const cfg = await this.configuracionService.findByClave(
+        'solicitud_notif_emails',
+      );
+      emails = ((cfg as any)?.valor ?? '')
+        .split(',')
+        .map((s: string) => s.trim().toLowerCase())
+        .filter(Boolean);
+    } catch (_) {
+      // clave inexistente → sin notificación de admin
+    }
+    if (!emails.length) return;
+
+    const titulo = 'Nueva solicitud de cuponera';
+    const cuerpo = `${solicitud.nombreCliente ?? 'Un cliente'} solicitó "${
+      solicitud.cuponeraNombre ?? 'una cuponera'
+    }".`;
+
+    // Correo a cada admin de la lista.
+    for (const email of emails) {
+      try {
+        const html = this.mailService.getTemplate('solicitud-nueva.html', {
+          nombreCliente: solicitud.nombreCliente ?? '—',
+          emailCliente: solicitud.emailCliente ?? '—',
+          cuponera: solicitud.cuponeraNombre ?? '—',
+          monto: (solicitud.montoTransferido ?? '—').toString(),
+          fecha: new Date().toLocaleString('es-EC'),
+          anio: new Date().getFullYear().toString(),
+        });
+        await this.mailService.enviar(email, titulo, html);
+      } catch (e) {
+        this.logger.error(`Error correo admin ${email}: ${e?.message}`);
+      }
+    }
+
+    // Push a los usuarios admin (de la lista) que tengan fcmToken.
+    try {
+      const admins = await this.usuarioModel
+        .find({
+          email: { $in: emails },
+          fcmToken: { $exists: true, $ne: null },
+        })
+        .select('fcmToken')
+        .lean();
+      for (const a of admins as any[]) {
+        if (a.fcmToken) {
+          await this.notificacionesService.enviarAToken(
+            a.fcmToken,
+            titulo,
+            cuerpo,
+          );
+        }
+      }
+    } catch (e) {
+      this.logger.error(`Error push admin: ${e?.message}`);
+    }
   }
 
   async findAll(filtros?: { estado?: string; page?: number; limit?: number }) {
@@ -91,12 +169,20 @@ export class SolicitudCuponeraService {
     estado: EstadoSolicitud,
     notaAdmin?: string,
   ): Promise<any> {
-    const doc = await this.model.findByIdAndUpdate(
-      id,
+    // Transición ATÓMICA: solo de PENDIENTE → APROBADO/RECHAZADO.
+    // Evita que un doble click (o doble request) procese la misma solicitud
+    // dos veces y cree cuponeras duplicadas: solo la PRIMERA matchea.
+    const doc = await this.model.findOneAndUpdate(
+      { _id: id, estado: EstadoSolicitud.PENDIENTE },
       { estado, ...(notaAdmin && { notaAdmin }) },
       { new: true },
     );
-    if (!doc) throw new NotFoundException('Solicitud no encontrada');
+    if (!doc) {
+      const existe = await this.model.exists({ _id: id });
+      if (!existe) throw new NotFoundException('Solicitud no encontrada');
+      // Ya estaba aprobada/rechazada → no se vuelve a procesar.
+      throw new BadRequestException('La solicitud ya fue procesada');
+    }
 
     // Enviar notificación push + correo al cliente
     const clienteId = (doc.cliente as any)?._id?.toString() ?? doc.cliente?.toString();

@@ -44,6 +44,12 @@ export class ConfiguracionService {
         valor: 'Realiza tu transferencia al monto indicado y sube una foto del comprobante para validar tu compra.',
         descripcion: 'Instrucciones que se muestran al usuario antes de subir comprobante',
       },
+      {
+        clave: 'solicitud_notif_emails',
+        valor: 'avillegas7510@gmail.com',
+        descripcion:
+          'Lista de correos (separados por coma) que reciben aviso de cada nueva solicitud de cuponera',
+      },
     ];
 
     for (const d of defaults) {

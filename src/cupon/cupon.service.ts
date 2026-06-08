@@ -407,6 +407,67 @@ export class CuponService {
     return result;
   }
 
+  /**
+   * Versión paginada de las cuponeras del cliente (endpoint nuevo, aditivo):
+   * soloActivas, q (nombre de la cuponera), page/limit.
+   */
+  async obtenerCuponerasPorClientePaginado(params: {
+    clienteId: string;
+    soloActivas?: boolean;
+    q?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<{
+    data: any[];
+    total: number;
+    page: number;
+    limit: number;
+    hasMore: boolean;
+  }> {
+    if (!Types.ObjectId.isValid(params.clienteId)) {
+      throw new BadRequestException('clienteId inválido');
+    }
+    const page = Math.max(1, Number(params.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(params.limit) || 30));
+
+    const match: any = { cliente: new Types.ObjectId(params.clienteId) };
+    if (params.soloActivas !== false) match.estado = EstadoCupon.ACTIVO;
+
+    let docs = await this._cuponModel
+      .find(match)
+      .populate('version', 'nombre descripcion precio')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // Búsqueda por nombre de la cuponera (la versión es populate → en memoria).
+    if (params.q && params.q.trim() !== '') {
+      const rx = params.q.trim().toLowerCase();
+      docs = docs.filter((c: any) =>
+        (c?.version?.nombre ?? '').toLowerCase().includes(rx),
+      );
+    }
+
+    const total = docs.length;
+    const pageDocs = docs.slice((page - 1) * limit, page * limit);
+    const data = pageDocs.map((c: any) => {
+      const codigo = String(c._id);
+      return {
+        _id: codigo,
+        nombre: c?.version?.nombre ?? 'Cuponera',
+        descripcion: c?.version?.descripcion ?? '',
+        ultimoScaneo: c?.ultimoScaneo ?? null,
+        codigo,
+        emitidaEl: c?.fechaActivacion ?? c?.createdAt ?? new Date(),
+        expiraEl: c?.fechaVencimiento ?? null,
+        qrData: codigo,
+        totalEscaneos: Number(c?.numeroDeEscaneos ?? 0),
+        secuencial: c.secuencial,
+      };
+    });
+
+    return { data, total, page, limit, hasMore: page * limit < total };
+  }
+
   // ✅ Asignar un cupón específico a un cliente
   async asignarCuponACliente(
     cuponId: string,
@@ -751,5 +812,50 @@ export class CuponService {
       );
       return ciudadesVersion.some((c: string) => ciudadesLocal.includes(c));
     });
+  }
+
+  /**
+   * Ids de locales donde el cliente tiene al menos un cupón disponible para
+   * canjear (sin canjear en ese grupo de local). Para el filtro "solo con
+   * cupón disponible" del home.
+   */
+  async findLocalesDisponibles(clienteId: string): Promise<string[]> {
+    const cupones = await this._cuponModel
+      .find({
+        cliente: new Types.ObjectId(clienteId),
+        estado: EstadoCupon.ACTIVO,
+      })
+      .populate('version', 'ciudadesDisponibles')
+      .lean();
+    if (!cupones.length) return [];
+
+    const cuponCities = new Set<string>();
+    for (const c of cupones as any[]) {
+      for (const cid of c.version?.ciudadesDisponibles ?? []) {
+        cuponCities.add(String(cid));
+      }
+    }
+    if (!cuponCities.size) return [];
+
+    const candidatos = await this._usuarioModel
+      .find({
+        detallePromocion: { $exists: true, $ne: null },
+        estado: true,
+        ciudades: {
+          $in: Array.from(cuponCities).map((id) => new Types.ObjectId(id)),
+        },
+      })
+      .select('_id')
+      .lean();
+
+    const disponibles: string[] = [];
+    for (const local of candidatos as any[]) {
+      const disp = await this.findDisponiblesParaLocal(
+        clienteId,
+        String(local._id),
+      );
+      if (disp.length > 0) disponibles.push(String(local._id));
+    }
+    return disponibles;
   }
 }
