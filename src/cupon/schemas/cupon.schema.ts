@@ -55,6 +55,14 @@ export class Cupon {
   @Prop({ type: Date, default: null, index: true })
   ultimoScaneo?: Date;
 
+  /**
+   * Última vez que se le mandó al cliente el push "tu cuponera sigue sin
+   * estrenar". El cron diario no vuelve a notificar antes de 14 días para
+   * no spamear.
+   */
+  @Prop({ type: Date, default: null })
+  recordatorioSinUsoAt?: Date | null;
+
   // ── Regalo ──────────────────────────────────────────────────────────
   // Si es un regalo, el cupón se asigna al destinatario pero queda "cerrado"
   // (regaloAbierto=false) hasta que la persona lo abre.

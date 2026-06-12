@@ -21,6 +21,14 @@ export class HistoricoCupon {
 
   @Prop({ default: Date.now })
   fechaEscaneo: Date;
+
+  /**
+   * Marca de cuándo se envió el push pidiéndole reseña al cliente. Null = aún
+   * no se le pidió. Lo usa el cron de reseñas pendientes para no enviar dos
+   * veces el mismo recordatorio.
+   */
+  @Prop({ type: Date, default: null, index: true })
+  reseniaPedidaAt?: Date | null;
 }
 
 export const HistoricoCuponSchema = SchemaFactory.createForClass(HistoricoCupon);
