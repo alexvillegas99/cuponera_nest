@@ -235,6 +235,29 @@ export class ClientesController {
     return { ok: true };
   }
 
+  /**
+   * Dispara un push a TODOS los devices del cliente avisando que cambió
+   * de cuenta. El cliente Flutter llama esto desde el AccountPicker tras
+   * un switch biométrico exitoso.
+   */
+  @Post('notify-switch')
+  @Auth()
+  async notifySwitch(
+    @GetUser() user: any,
+    @Body() body: { dispositivo?: string; nombreCuenta?: string } = {},
+  ) {
+    if (!user?._id) return { ok: false };
+    const nombre = body.nombreCuenta || 'tu cuenta';
+    const dev = body.dispositivo || 'tu dispositivo';
+    await this.service.notificarTodosDispositivos(
+      user._id.toString(),
+      '🔄 Cambio de cuenta',
+      `Cambiaste a ${nombre} desde ${dev}.`,
+      { tipo: 'switch', dispositivo: dev },
+    );
+    return { ok: true };
+  }
+
   @Delete('me')
   @Auth()
   async deleteMe(@GetUser() user: any) {

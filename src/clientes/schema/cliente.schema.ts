@@ -57,8 +57,17 @@
     @Prop({ type: Boolean, default: true, index: true })
     estado: boolean;
 
+    /** Legacy: último token registrado. Mantener por compat con código viejo. */
     @Prop({ type: String })
     fcmToken?: string;
+
+    /**
+     * Tokens FCM activos del cliente, uno por dispositivo. Permite enviar
+     * push a TODOS los devices logueados (login, switch, alertas seguridad).
+     * Se rellena automáticamente al llamar /clientes/:id/fcm-token.
+     */
+    @Prop({ type: [String], default: [] })
+    fcmTokens: string[];
 
     @Prop({ type: Boolean, default: false, index: true })
     deleted?: boolean;

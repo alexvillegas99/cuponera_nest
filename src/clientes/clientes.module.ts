@@ -10,10 +10,12 @@ import { HistoricoCupon, HistoricoCuponSchema } from 'src/historico-cupon/schema
 import { VersionCuponera, VersionCuponeraSchema } from 'src/version-cuponera/schemas/version-cuponera.schema';
 import { S3Module } from 'src/amazon-s3/amazon-s3.module';
 import { Provincia, ProvinciaSchema } from 'src/provincia/schema/provincia.schema';
+import { NotificacionesModule } from 'src/notificaciones/notificaciones.module';
 
 @Module({
   imports: [
     S3Module,
+    NotificacionesModule,
     MongooseModule.forFeature([ { name: Cliente.name, schema: ClienteSchema },
       { name: Cupon.name, schema: CuponSchema },
       { name: VersionCuponera.name, schema: VersionCuponeraSchema },

@@ -37,6 +37,7 @@ import {
   FavoriteDocument,
 } from 'src/favorite/schema/favorite.schema';
 import { AmazonS3Service } from 'src/amazon-s3/amazon-s3.service';
+import { NotificacionesService } from 'src/notificaciones/notificaciones.service';
 
 @Injectable()
 export class ClientesService implements OnModuleInit {
@@ -56,6 +57,7 @@ export class ClientesService implements OnModuleInit {
     @InjectModel(Favorite.name)
     private readonly favoritoModel: Model<FavoriteDocument>,
     private readonly amazonS3Service: AmazonS3Service,
+    private readonly notificacionesService: NotificacionesService,
   ) {}
   private readonly logger = new Logger(ClientesService.name);
 
@@ -119,12 +121,82 @@ export class ClientesService implements OnModuleInit {
   }
 
   async actualizarFcmToken(clienteId: string, fcmToken: string): Promise<void> {
-    await this.clienteModel.findByIdAndUpdate(clienteId, { fcmToken });
+    if (!fcmToken || !fcmToken.trim()) return;
+    // Mantener fcmToken (legacy) con el último y poblar fcmTokens (array)
+    // sin duplicados — permite push a todos los devices del cliente.
+    await this.clienteModel.findByIdAndUpdate(clienteId, {
+      $set: { fcmToken },
+      $addToSet: { fcmTokens: fcmToken },
+    });
   }
 
   async obtenerFcmToken(clienteId: string): Promise<string | null> {
     const cliente = await this.clienteModel.findById(clienteId).select('fcmToken').lean();
     return (cliente as any)?.fcmToken ?? null;
+  }
+
+  /** Obtiene todos los tokens FCM del cliente (sin duplicados, no vacíos). */
+  async obtenerFcmTokens(clienteId: string): Promise<string[]> {
+    const cliente: any = await this.clienteModel
+      .findById(clienteId)
+      .select('fcmToken fcmTokens')
+      .lean();
+    if (!cliente) return [];
+    const set = new Set<string>();
+    if (Array.isArray(cliente.fcmTokens)) {
+      for (const t of cliente.fcmTokens) {
+        if (t && typeof t === 'string') set.add(t);
+      }
+    }
+    if (cliente.fcmToken && typeof cliente.fcmToken === 'string') {
+      set.add(cliente.fcmToken);
+    }
+    return Array.from(set);
+  }
+
+  /**
+   * Envía un push a TODOS los devices del cliente. Si algún token es
+   * inválido (FCM responde UNREGISTERED), lo limpiamos de la BD para no
+   * volver a intentarlo. Best-effort: errores se loguean, nunca rompen
+   * el flujo del que llama (login, switch).
+   */
+  async notificarTodosDispositivos(
+    clienteId: string,
+    title: string,
+    body: string,
+    data?: Record<string, string>,
+  ): Promise<void> {
+    try {
+      const tokens = await this.obtenerFcmTokens(clienteId);
+      if (tokens.length === 0) return;
+      const muertos: string[] = [];
+      await Promise.all(
+        tokens.map(async (token) => {
+          try {
+            await this.notificacionesService.enviarAToken(token, title, body, data);
+          } catch (err: any) {
+            const msg = (err?.message || '').toString();
+            if (/UNREGISTERED|INVALID_ARGUMENT|NotRegistered/i.test(msg)) {
+              muertos.push(token);
+            } else {
+              this.logger.warn(
+                `notif push falló a token=${token.slice(0, 12)}…: ${msg}`,
+              );
+            }
+          }
+        }),
+      );
+      if (muertos.length > 0) {
+        await this.clienteModel.findByIdAndUpdate(clienteId, {
+          $pull: { fcmTokens: { $in: muertos } },
+        });
+        this.logger.log(
+          `Limpiados ${muertos.length} token(s) muerto(s) del cliente ${clienteId}`,
+        );
+      }
+    } catch (e: any) {
+      this.logger.error(`notificarTodosDispositivos: ${e?.message}`);
+    }
   }
 
   async create(dto: any) {

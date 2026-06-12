@@ -212,6 +212,18 @@ export class AuthService {
       dispositivo,
     });
     await this.mailService.enviar(cli.email, 'Inicio de sesión', html);
+
+    // Push a TODOS los devices del cliente — aviso estilo "se inició sesión".
+    // Fire-and-forget: si falla, no rompe el login.
+    this.clienteService
+      .notificarTodosDispositivos(
+        String(cli._id),
+        '🔐 Inicio de sesión',
+        `Iniciaste sesión en Enjoy desde ${dispositivo || 'tu dispositivo'}.`,
+        { tipo: 'login', dispositivo: String(dispositivo || ''), ip: String(ip || '') },
+      )
+      .catch(() => {});
+
     return { accessToken, cliente: cli };
   }
 
