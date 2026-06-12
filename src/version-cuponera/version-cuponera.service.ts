@@ -11,6 +11,7 @@ import {
 import { Model, isValidObjectId, Types } from 'mongoose';
 import { UsuariosService } from 'src/usuarios/usuarios.service';
 import { Ciudad, CiudadDocument } from 'src/ciudad/schema/ciudad.schema';
+import { NotificacionesService } from 'src/notificaciones/notificaciones.service';
 
 /** Populate compartido para refs de ciudades y provincias */
 const POPULATE_REFS = [
@@ -26,7 +27,20 @@ export class VersionCuponeraService {
     @InjectModel(Ciudad.name)
     private readonly ciudadModel: Model<CiudadDocument>,
     private readonly usuariosService: UsuariosService,
+    private readonly notificaciones: NotificacionesService,
   ) {}
+
+  /// Notifica a TODOS los clientes (topic 'general') una nueva membresía.
+  private async _notificarNuevaPromo(version: any) {
+    try {
+      const nombre = version?.nombre ?? 'Una nueva membresía';
+      await this.notificaciones.enviarATopic(
+        'general',
+        '¡Nueva membresía disponible! 🎉',
+        `"${nombre}" ya está disponible. ¡Descúbrela en la app!`,
+      );
+    } catch (_) {}
+  }
 
   /** Convierte refs populadas (ciudades y provincias) a arrays de nombres */
   private toNames(doc: any) {
@@ -80,6 +94,10 @@ export class VersionCuponeraService {
       .findById(created._id)
       .populate(POPULATE_REFS)
       .lean();
+    // Si nace activa, avisar a los clientes.
+    if (created?.estado === true) {
+      this._notificarNuevaPromo(populated ?? created);
+    }
     return this.toNames(populated);
   }
 
@@ -117,6 +135,10 @@ export class VersionCuponeraService {
       .lean();
     if (!updated)
       throw new NotFoundException('Versión de cuponera no encontrada');
+    // Al ACTIVAR la versión, avisar a los clientes.
+    if ((dto as any)?.estado === true) {
+      this._notificarNuevaPromo(updated);
+    }
     return this.toNames(updated);
   }
 

@@ -32,16 +32,50 @@ export class MailService {
     const filePath = this.getTemplatePath(fileName);
     let template = fs.readFileSync(filePath, 'utf8');
 
-    for (const [key, value] of Object.entries(variables)) {
-      template = template.replace(new RegExp(`{{${key}}}`, 'g'), value);
+    // Variables de marca comunes a TODOS los correos. El caller puede
+    // sobreescribirlas. Evita que plantillas con {{enlace_soporte}}, {{anio}},
+    // etc. queden con placeholders crudos si el servicio no las pasa.
+    const data: Record<string, string> = {
+      anio: String(new Date().getFullYear()),
+      correo_soporte: 'info@ecuenjoy.com',
+      enlace_soporte: 'https://portal.ecuenjoy.com/soporte',
+      enlace_portal: 'https://portal.ecuenjoy.com/',
+      ...variables,
+    };
+
+    for (const [key, value] of Object.entries(data)) {
+      // Reemplazo seguro: función como replacement para no interpretar
+      // secuencias como $&, $1 dentro de los valores (p. ej. "$10.00").
+      template = template.replace(
+        new RegExp(`{{\\s*${key}\\s*}}`, 'g'),
+        () => value ?? '',
+      );
     }
+
+    // Limpiar cualquier placeholder no resuelto para que no aparezca crudo.
+    template = template.replace(/{{\s*[\w.]+\s*}}/g, '');
 
     return template;
   }
 
   getTemplatePath(fileName: string) {
-    const basePath = path.join(process.cwd(), 'src', 'mail', 'templates');
-
-    return path.join(basePath, fileName);
+    // Buscar la plantilla en varias ubicaciones por robustez entre dev y prod:
+    //  1) junto al código compilado (dist/mail/templates) — se copia vía
+    //     nest-cli assets y viaja con el deploy.
+    //  2) src/mail/templates relativo al cwd (modo dev / instalación antigua).
+    const candidatos = [
+      path.join(__dirname, 'templates', fileName),
+      path.join(process.cwd(), 'src', 'mail', 'templates', fileName),
+      path.join(process.cwd(), 'dist', 'mail', 'templates', fileName),
+    ];
+    for (const p of candidatos) {
+      try {
+        if (fs.existsSync(p)) return p;
+      } catch (_) {
+        // siguiente candidato
+      }
+    }
+    // Por defecto, mantener el comportamiento histórico (src).
+    return path.join(process.cwd(), 'src', 'mail', 'templates', fileName);
   }
 }

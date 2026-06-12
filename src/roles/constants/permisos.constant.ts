@@ -156,8 +156,8 @@ export const PERMISOS_CATALOG: GrupoPermisos[] = [
     modulo: 'notificaciones',
     nombre: 'Notificaciones',
     permisos: [
-      { clave: 'notificaciones.ver', nombre: 'Ver notificaciones', descripcion: 'Listar notificaciones' },
-      { clave: 'notificaciones.enviar', nombre: 'Enviar notificaciones', descripcion: 'Enviar notificaciones push' },
+      { clave: 'notificaciones.ver', nombre: 'Ver campañas', descripcion: 'Listar campañas y notificaciones enviadas' },
+      { clave: 'notificaciones.enviar', nombre: 'Enviar / programar campañas', descripcion: 'Crear, programar, editar y enviar campañas a usuarios' },
     ],
   },
   {
@@ -166,6 +166,14 @@ export const PERMISOS_CATALOG: GrupoPermisos[] = [
     permisos: [
       { clave: 'pagos.ver', nombre: 'Ver pagos', descripcion: 'Ver transacciones de pago' },
       { clave: 'pagos.configurar', nombre: 'Configurar pagos', descripcion: 'Configurar PayPhone y métodos de pago' },
+    ],
+  },
+  {
+    modulo: 'chat',
+    nombre: 'Chat',
+    permisos: [
+      { clave: 'chat.ver', nombre: 'Ver bandeja de chats', descripcion: 'Acceso a la bandeja compartida de conversaciones del equipo' },
+      { clave: 'chat.responder', nombre: 'Responder chats', descripcion: 'Permite responder, asignar y cerrar conversaciones del equipo' },
     ],
   },
   {

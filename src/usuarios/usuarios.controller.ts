@@ -192,6 +192,8 @@ export class UsuariosController {
     return this.usuariosService.findByProvinciaConPromo(provincia);
   }
 
+
+
   @Get('promos')
   @ApiOperation({
     summary: 'Locales con promoción (paginado, aditivo)',
@@ -358,22 +360,51 @@ export class UsuariosController {
       }
     }
 
-    // Registrar historial para revisión del admin (solo para roles no-admin)
-    const esAdmin = permisos.includes('dashboard.ver');
-    if (!esAdmin) {
+    // Historial de cambios (para CUALQUIER usuario que edita): guarda una copia
+    // de los valores ANTERIORES de los campos que existían y se editaron/borraron.
+    // Los campos NUEVOS (que no existían antes) no se registran.
+    try {
       const actual = await this.usuariosService.findByIdRaw(id);
+      const META = new Set([
+        '_id',
+        '__v',
+        'createdAt',
+        'updatedAt',
+        'clave',
+        'password',
+        'imageBase64',
+        'logoBase64',
+      ]);
+      const teniaValor = (v: any) =>
+        v !== undefined &&
+        v !== null &&
+        !(typeof v === 'string' && v.trim() === '') &&
+        !(Array.isArray(v) && v.length === 0);
+
       const datosAnteriores: Record<string, any> = {};
+      const datosNuevos: Record<string, any> = {};
       for (const key of Object.keys(dto)) {
-        datosAnteriores[key] = (actual as any)?.[key];
+        if (META.has(key)) continue;
+        const prev = (actual as any)?.[key];
+        if (!teniaValor(prev)) continue; // no existía antes → es alta, no se registra
+        if (JSON.stringify(prev) !== JSON.stringify(dto[key])) {
+          datosAnteriores[key] = prev;
+          datosNuevos[key] = dto[key];
+        }
       }
-      this.historialSvc.registrarCambio({
-        establecimientoId: id,
-        nombreEstablecimiento: (actual as any)?.nombre ?? id,
-        editadoPorId: user._id?.toString(),
-        editadoPorNombre: user.nombre ?? user.email,
-        datosAnteriores,
-        datosNuevos: { ...dto },
-      });
+
+      if (Object.keys(datosAnteriores).length > 0) {
+        await this.historialSvc.registrarCambio({
+          establecimientoId: id,
+          nombreEstablecimiento: (actual as any)?.nombre ?? id,
+          editadoPorId: user._id?.toString(),
+          editadoPorNombre: user.nombre ?? user.email,
+          datosAnteriores,
+          datosNuevos,
+        });
+      }
+    } catch {
+      // Historial best-effort: nunca debe bloquear el guardado.
     }
 
     const result = await this.usuariosService.update(id, dto);

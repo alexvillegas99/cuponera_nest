@@ -49,6 +49,23 @@ export class SolicitudCuponera extends Document {
 
   @Prop({ trim: true })
   notaAdmin: string;
+
+  // ── Regalo ──────────────────────────────────────────────────────────
+  @Prop({ type: Boolean, default: false, index: true })
+  esRegalo: boolean;
+
+  @Prop({ type: Types.ObjectId, ref: 'Cliente', required: false })
+  destinatarioId: Types.ObjectId;
+
+  @Prop({ trim: true })
+  destinatarioNombre: string;
+
+  @Prop({ trim: true })
+  mensajeRegalo: string;
+
+  // Cupón de regalo generado al aprobar (para ver si el destinatario lo abrió).
+  @Prop({ type: Types.ObjectId, ref: 'Cupon', default: null })
+  cuponRegaloId: Types.ObjectId;
 }
 
 export const SolicitudCuponeraSchema =

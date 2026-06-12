@@ -54,6 +54,24 @@ export class Cupon {
 
   @Prop({ type: Date, default: null, index: true })
   ultimoScaneo?: Date;
+
+  // ── Regalo ──────────────────────────────────────────────────────────
+  // Si es un regalo, el cupón se asigna al destinatario pero queda "cerrado"
+  // (regaloAbierto=false) hasta que la persona lo abre.
+  @Prop({ type: Boolean, default: false, index: true })
+  esRegalo?: boolean;
+
+  @Prop({ type: Boolean, default: true })
+  regaloAbierto?: boolean;
+
+  @Prop({ type: String, default: null })
+  regaloDe?: string; // nombre de quien regala
+
+  @Prop({ type: String, default: null })
+  regaloMensaje?: string;
+
+  @Prop({ type: Types.ObjectId, ref: Cliente.name, required: false })
+  compradorId?: Types.ObjectId; // cliente que compró el regalo
 }
 
 export const CuponSchema = SchemaFactory.createForClass(Cupon);

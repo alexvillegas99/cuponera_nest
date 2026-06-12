@@ -5,6 +5,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  OnModuleInit,
   Optional,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
@@ -18,6 +19,10 @@ import {
   TipoIdentificacion,
 } from './schema/cliente.schema';
 import { Ciudad, CiudadDocument } from 'src/ciudad/schema/ciudad.schema';
+import {
+  Provincia,
+  ProvinciaDocument,
+} from 'src/provincia/schema/provincia.schema';
 import { Cupon, CuponDocument } from 'src/cupon/schemas/cupon.schema';
 import {
   HistoricoCupon,
@@ -31,9 +36,10 @@ import {
   Favorite,
   FavoriteDocument,
 } from 'src/favorite/schema/favorite.schema';
+import { AmazonS3Service } from 'src/amazon-s3/amazon-s3.service';
 
 @Injectable()
-export class ClientesService {
+export class ClientesService implements OnModuleInit {
   constructor(
     @InjectModel(Cliente.name)
     private readonly clienteModel: Model<ClienteDocument>,
@@ -42,13 +48,75 @@ export class ClientesService {
     private readonly versionModel: Model<VersionCuponeraDocument>,
     @InjectModel(Ciudad.name)
     private readonly ciudadModel: Model<CiudadDocument>,
+    @InjectModel(Provincia.name)
+    private readonly provinciaModel: Model<ProvinciaDocument>,
     @InjectModel(HistoricoCupon.name)
     private readonly historicoModel: Model<HistoricoCuponDocument>,
     // opcional si existe
     @InjectModel(Favorite.name)
     private readonly favoritoModel: Model<FavoriteDocument>,
+    private readonly amazonS3Service: AmazonS3Service,
   ) {}
   private readonly logger = new Logger(ClientesService.name);
+
+  /**
+   * Backfill al boot: asigna Tungurahua/Ambato a los clientes sin ubicación.
+   * Idempotente: si todos ya tienen provincia/ciudad, no hace nada.
+   */
+  async onModuleInit() {
+    try {
+      const sinProvincia = await this.clienteModel.countDocuments({
+        $or: [
+          { provincia: null },
+          { provincia: { $exists: false } },
+          { ciudad: null },
+          { ciudad: { $exists: false } },
+        ],
+      });
+      if (sinProvincia === 0) return;
+
+      const tungurahua = await this.provinciaModel
+        .findOne({ slug: 'tungurahua' })
+        .lean();
+      if (!tungurahua) {
+        // Slugs aún no generados (otro módulo correrá su init). Saltamos.
+        this.logger.warn(
+          `Backfill ubicación cliente: provincia Tungurahua no encontrada (slug). Reintento al próximo boot.`,
+        );
+        return;
+      }
+
+      const ambato = await this.ciudadModel
+        .findOne({
+          nombre: { $regex: /^ambato$/i },
+          provincia: tungurahua._id,
+        })
+        .lean();
+      if (!ambato) {
+        this.logger.warn(
+          `Backfill ubicación cliente: ciudad Ambato no encontrada en Tungurahua.`,
+        );
+        return;
+      }
+
+      const res = await this.clienteModel.updateMany(
+        {
+          $or: [
+            { provincia: null },
+            { provincia: { $exists: false } },
+            { ciudad: null },
+            { ciudad: { $exists: false } },
+          ],
+        },
+        { $set: { provincia: tungurahua._id, ciudad: ambato._id } },
+      );
+      this.logger.log(
+        `Backfill ubicación cliente: ${res.modifiedCount} cliente(s) asignados a Tungurahua/Ambato ✔`,
+      );
+    } catch (e: any) {
+      this.logger.error(`onModuleInit backfill: ${e?.message}`);
+    }
+  }
 
   async actualizarFcmToken(clienteId: string, fcmToken: string): Promise<void> {
     await this.clienteModel.findByIdAndUpdate(clienteId, { fcmToken });
@@ -81,9 +149,24 @@ export class ClientesService {
     return obj;
   }
   async findById(id: string) {
-    const c = await this.clienteModel.findById(id).lean().exec();
+    const c: any = await this.clienteModel
+      .findById(id)
+      .populate('provincia', 'nombre slug')
+      .populate('ciudad', 'nombre')
+      .lean()
+      .exec();
     if (!c) throw new NotFoundException('Cliente no encontrado');
-    delete (c as any).password;
+    delete c.password;
+    // Aplanar provinciaSlug + nombre para que la app lo lea sin acceder al populate.
+    if (c.provincia && typeof c.provincia === 'object') {
+      c.provinciaSlug = c.provincia.slug || null;
+      c.provinciaNombre = c.provincia.nombre || null;
+      c.provincia = c.provincia._id;
+    }
+    if (c.ciudad && typeof c.ciudad === 'object') {
+      c.ciudadNombre = c.ciudad.nombre || null;
+      c.ciudad = c.ciudad._id;
+    }
     return c;
   }
   async findAdmin(filters: {
@@ -148,6 +231,43 @@ export class ClientesService {
     return this.clienteModel.find(filter).limit(100).lean();
   }
 
+  /**
+   * Buscar un destinatario para un regalo por email o identificación exactos.
+   * Devuelve datos mínimos para que el comprador confirme a quién le regala.
+   */
+  async buscarDestinatario(q: string) {
+    const term = (q ?? '').trim();
+    if (term.length < 3) {
+      return { exists: false };
+    }
+    const cliente = await this.clienteModel
+      .findOne({
+        $or: [
+          { email: new RegExp(`^${escapeRegExp(term)}$`, 'i') },
+          { identificacion: term },
+        ],
+      })
+      .select('nombres apellidos email identificacion')
+      .lean();
+
+    if (!cliente) return { exists: false };
+
+    const nombre = [
+      (cliente as any).nombres,
+      (cliente as any).apellidos,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+
+    return {
+      exists: true,
+      id: String((cliente as any)._id),
+      nombre: nombre || (cliente as any).email,
+      email: (cliente as any).email,
+    };
+  }
+
   async findByEmail(email: string, withPassword = false) {
     const q = this.clienteModel.findOne({ email: email.toLowerCase() });
     if (withPassword) q.select('+password');
@@ -171,19 +291,24 @@ export class ClientesService {
       }
     }
 
+    // Construye el $set solo con los campos enviados (evita pisar con undefined).
+    const set: Record<string, any> = {};
+    if (dto.nombres !== undefined) set.nombres = dto.nombres;
+    if (dto.apellidos !== undefined) set.apellidos = dto.apellidos;
+    if (dto.correo !== undefined) set.correo = dto.correo;
+    if (dto.telefono !== undefined) set.telefono = dto.telefono;
+
+    // Foto de perfil: si llega un data URL (base64), súbela a S3 y guarda la URL.
+    if (dto.fotoBase64) {
+      const { url } = await this.amazonS3Service.uploadBase64({
+        image: dto.fotoBase64,
+        route: 'enjoy/clientes',
+      });
+      set.fotoUrl = url;
+    }
+
     const updated = await this.clienteModel
-      .findByIdAndUpdate(
-        userId,
-        {
-          $set: {
-            nombres: dto.nombres,
-            apellidos: dto.apellidos,
-            correo: dto.correo,
-            telefono: dto.telefono,
-          },
-        },
-        { new: true },
-      )
+      .findByIdAndUpdate(userId, { $set: set }, { new: true })
       .select('-clave -password -__v'); // oculta sensibles si existen
 
     if (!updated) {
@@ -316,6 +441,7 @@ export class ClientesService {
         _id: cliente._id.toString(),
         name,
         email: cliente.email ?? '',
+        avatarUrl: (cliente as any).fotoUrl ?? null, // foto de perfil (S3)
         favoritos: favoritosCount,
         cuponeras: cuponerasCount, // ✅ ahora sí: cantidad de cupones
         escaneos: escaneosCount,

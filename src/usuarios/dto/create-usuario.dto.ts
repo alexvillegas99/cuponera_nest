@@ -4,6 +4,7 @@ import {
   IsString,
   IsBoolean,
   IsOptional,
+  IsArray,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
@@ -32,7 +33,10 @@ export class CreateUsuarioDto {
   @IsString()
   identificacion: string;
 
-  @ApiProperty({ example: 'admin', description: 'Slug del rol (admin, admin-local, staff, vendedor, etc.)' })
+  @ApiProperty({
+    example: 'admin',
+    description: 'Slug del rol (admin, admin-local, staff, vendedor, etc.)',
+  })
   @IsOptional()
   @IsString()
   rol: string;
@@ -45,16 +49,13 @@ export class CreateUsuarioDto {
   @IsBoolean()
   estado: boolean;
 
-
   @ApiProperty({
     example: 'claveEncriptada123',
     description: 'Clave del usuario (debe ser encriptada antes de guardar)',
   })
   @IsNotEmpty()
-  @IsString() 
+  @IsString()
   clave: string;
-
-
 
   @ApiProperty({
     example: '60c72b2f9b1d8c001c8e4f3a',
@@ -65,4 +66,23 @@ export class CreateUsuarioDto {
   @IsString()
   usuarioCreacion?: string; // ID del usuario que creó este registro
 
+  @ApiProperty({
+    type: [String],
+    required: false,
+    description: 'IDs de ciudades asignadas',
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  ciudades?: string[];
+
+  @ApiProperty({
+    type: [String],
+    required: false,
+    description: 'IDs de categorías asignadas',
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  categorias?: string[];
 }

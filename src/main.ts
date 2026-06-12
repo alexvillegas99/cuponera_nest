@@ -1,3 +1,10 @@
+// Polyfill: @nestjs/schedule usa el `crypto` global (no disponible en algunas
+// versiones de Node del servidor). Debe ir ANTES de cargar AppModule.
+import { webcrypto } from 'node:crypto';
+if (!(globalThis as any).crypto) {
+  (globalThis as any).crypto = webcrypto;
+}
+
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { Logger, ValidationPipe } from '@nestjs/common';
@@ -12,6 +19,7 @@ import {
   ExpressAdapter,
   NestExpressApplication,
 } from '@nestjs/platform-express';
+import { IoAdapter } from '@nestjs/platform-socket.io';
 import { cacheControlMiddleware } from './common/middleware/middleware';
 import { initSwagger } from './app.swagger';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
@@ -49,6 +57,8 @@ async function bootstrap() {
   app.useGlobalPipes(
     new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }),
   );
+  // WebSockets (Socket.IO) — chat en vivo
+  app.useWebSocketAdapter(new IoAdapter(app));
   const config = app.get(ConfigService);
   const port = config.get(PORT);
 

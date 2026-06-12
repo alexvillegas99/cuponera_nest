@@ -158,6 +158,23 @@ export class ClientesController {
     return this.service.findAll(q, estado);
   }
 
+  @Get('buscar-destinatario')
+  @Auth()
+  @ApiOperation({
+    summary: 'Buscar destinatario para un regalo',
+    description:
+      'Busca un cliente por email o identificación exactos. Devuelve datos mínimos para confirmar a quién se le regala.',
+  })
+  @ApiQuery({
+    name: 'q',
+    required: true,
+    type: String,
+    description: 'Email o identificación del destinatario',
+  })
+  buscarDestinatario(@Query('q') q?: string) {
+    return this.service.buscarDestinatario(q ?? '');
+  }
+
   @Get(':id')
   @Auth()
   @ApiOperation({

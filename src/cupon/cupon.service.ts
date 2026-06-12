@@ -16,6 +16,8 @@ import { UsuariosService } from 'src/usuarios/usuarios.service';
 import { EstadoCupon } from './enum/estados_cupon';
 import { Types } from 'mongoose';
 import { HistoricoCuponService } from 'src/historico-cupon/historico-cupon.service';
+import { NotificacionesService } from 'src/notificaciones/notificaciones.service';
+import { ClientesService } from 'src/clientes/clientes.service';
 
 // ⬇️ NUEVOS IMPORTS
 import { Usuario, UsuarioDocument } from 'src/usuarios/schema/usuario.schema';
@@ -38,6 +40,8 @@ export class CuponService {
     private readonly _usuarioModel: Model<UsuarioDocument>,
     @InjectModel(HistoricoCupon.name)
     private readonly _historicoModel: Model<HistoricoCuponDocument>,
+    private readonly _notificaciones: NotificacionesService,
+    private readonly _clientesService: ClientesService,
   ) {}
   private readonly logger = new Logger(CuponService.name);
   /**
@@ -70,6 +74,7 @@ export class CuponService {
     const fechaVencimiento = new Date(fechaActivacion);
     fechaVencimiento.setFullYear(fechaVencimiento.getFullYear() + 1);
     // 6. Establecer valores por defecto
+    const esRegalo = dto.esRegalo === true;
     const cuponData = {
       version: new Types.ObjectId(dto.version),
       cliente: new Types.ObjectId(dto.cliente),
@@ -82,6 +87,14 @@ export class CuponService {
       fechaActivacion,
       fechaVencimiento,
       ultimoScaneo: null,
+      // Regalo
+      esRegalo,
+      regaloAbierto: esRegalo ? dto.regaloAbierto === true : true,
+      regaloDe: esRegalo ? (dto.regaloDe ?? null) : null,
+      regaloMensaje: esRegalo ? (dto.regaloMensaje ?? null) : null,
+      compradorId: dto.compradorId
+        ? new Types.ObjectId(dto.compradorId)
+        : undefined,
     };
 
     // 7. Crear el cupón
@@ -400,6 +413,10 @@ export class CuponService {
           qrData: codigo,
           totalEscaneos: Number(c?.numeroDeEscaneos ?? 0),
           secuencial,
+          esRegalo: c?.esRegalo === true,
+          regaloAbierto: c?.esRegalo === true ? c?.regaloAbierto === true : true,
+          regaloDe: c?.regaloDe ?? null,
+          regaloMensaje: c?.regaloMensaje ?? null,
         };
       }),
     );
@@ -462,6 +479,10 @@ export class CuponService {
         qrData: codigo,
         totalEscaneos: Number(c?.numeroDeEscaneos ?? 0),
         secuencial: c.secuencial,
+        esRegalo: c?.esRegalo === true,
+        regaloAbierto: c?.esRegalo === true ? c?.regaloAbierto === true : true,
+        regaloDe: c?.regaloDe ?? null,
+        regaloMensaje: c?.regaloMensaje ?? null,
       };
     });
 
@@ -501,7 +522,77 @@ export class CuponService {
     }
     await cupon.save();
 
+    // Notificar al cliente su nueva membresía (best-effort, no bloquea).
+    try {
+      const token = await this._clientesService.obtenerFcmToken(clienteId);
+      await this._notificaciones.enviarAToken(
+        token,
+        '¡Tienes una nueva membresía! 🎉',
+        'Se asignó una cuponera a tu cuenta. ¡Ya puedes usarla!',
+      );
+    } catch (e: any) {
+      this.logger.error(`Error notificando asignación: ${e?.message}`);
+    }
+
     return { ok: true, cuponId: String(cupon._id) };
+  }
+
+  // 🎁 El destinatario abre su regalo: marca regaloAbierto=true.
+  async abrirRegalo(cuponId: string, clienteId: string) {
+    if (
+      !Types.ObjectId.isValid(cuponId) ||
+      !Types.ObjectId.isValid(clienteId)
+    ) {
+      throw new BadRequestException('cuponId o clienteId inválido');
+    }
+    const cupon = await this._cuponModel.findOne({
+      _id: new Types.ObjectId(cuponId),
+      cliente: new Types.ObjectId(clienteId),
+      esRegalo: true,
+    });
+    if (!cupon) throw new NotFoundException('Regalo no encontrado');
+    const yaEstabaAbierto = cupon.regaloAbierto === true;
+    if (!yaEstabaAbierto) {
+      cupon.regaloAbierto = true;
+      await cupon.save();
+      // Avisar al comprador que su regalo fue abierto (best-effort).
+      this._notificarCompradorRegaloAbierto(cupon, clienteId).catch((e) =>
+        this.logger.error(`Error notificando apertura de regalo: ${e?.message}`),
+      );
+    }
+    return { ok: true, cuponId: String(cupon._id) };
+  }
+
+  /** Push al comprador cuando el destinatario abre su regalo. */
+  private async _notificarCompradorRegaloAbierto(
+    cupon: any,
+    destinatarioId: string,
+  ) {
+    const compradorId = cupon.compradorId?.toString();
+    if (!compradorId) return;
+    let nombreDest = 'Tu destinatario';
+    try {
+      const dest = await this._clientesService.findById(destinatarioId);
+      const n = [(dest as any)?.nombres, (dest as any)?.apellidos]
+        .filter(Boolean)
+        .join(' ')
+        .trim();
+      if (n) nombreDest = n;
+    } catch (_) {
+      // sin nombre → usa genérico
+    }
+    try {
+      const token = await this._clientesService.obtenerFcmToken(compradorId);
+      if (token) {
+        await this._notificaciones.enviarAToken(
+          token,
+          '¡Tu regalo fue abierto! 🎁',
+          `${nombreDest} ya abrió el regalo que le enviaste. ¡Gracias por compartir Enjoy!`,
+        );
+      }
+    } catch (e: any) {
+      this.logger.error(`Error push comprador regalo: ${e?.message}`);
+    }
   }
 
   // ✅ Listar cupones asignados a un cliente (tus “cuponeras”)

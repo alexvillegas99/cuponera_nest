@@ -189,6 +189,28 @@ export class NotificacionesService {
     }
   }
 
+  /** 🔹 Enviar notificación a un TOPIC FCM (broadcast a suscritos) */
+  async enviarATopic(
+    topic: string,
+    title: string,
+    body: string,
+    data?: Record<string, string>,
+  ): Promise<void> {
+    if (!topic) return;
+    try {
+      const notificacion = {
+        message: {
+          topic,
+          notification: { title, body },
+          ...(data && { data }),
+        },
+      };
+      await this.enviarNotificacion(notificacion);
+    } catch (error) {
+      console.error('❌ enviarATopic error:', error.message);
+    }
+  }
+
   /** 🔹 Obtener todas las notificaciones */
   async getAllNotifications(): Promise<any[]> {
     try {

@@ -14,6 +14,8 @@ import { HistoricoCupon, HistoricoCuponSchema } from 'src/historico-cupon/schema
 import { VersionCuponeraModule } from 'src/version-cuponera/version-cuponera.module';
 import { UsuariosModule } from 'src/usuarios/usuarios.module';
 import { HistoricoCuponModule } from 'src/historico-cupon/historico-cupon.module';
+import { NotificacionesModule } from 'src/notificaciones/notificaciones.module';
+import { ClientesModule } from 'src/clientes/clientes.module';
 
 @Module({
   imports: [
@@ -25,6 +27,8 @@ import { HistoricoCuponModule } from 'src/historico-cupon/historico-cupon.module
     VersionCuponeraModule,
     UsuariosModule,
     forwardRef(() => HistoricoCuponModule),
+    NotificacionesModule,
+    ClientesModule,
   ],
   controllers: [CuponController],
   providers: [CuponService],

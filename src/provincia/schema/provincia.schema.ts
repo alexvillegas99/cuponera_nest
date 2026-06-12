@@ -13,6 +13,10 @@ export class Provincia {
   @Prop({ trim: true })
   codigo?: string;
 
+  /** Slug normalizado (lowercase, sin tildes ni espacios). Usado como topic FCM. */
+  @Prop({ trim: true, lowercase: true, index: true })
+  slug?: string;
+
   @Prop({ default: true })
   estado: boolean;
 }

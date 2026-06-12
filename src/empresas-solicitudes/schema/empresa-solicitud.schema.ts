@@ -44,6 +44,10 @@ export class EmpresaSolicitud {
     default: SolicitudEstado.PENDIENTE,
   })
   estado!: SolicitudEstado;
+
+  // Nota interna del admin (motivo de rechazo u observación de gestión).
+  @Prop({ type: String, trim: true, default: null })
+  notaAdmin?: string;
 }
 
 export const EmpresaSolicitudSchema = SchemaFactory.createForClass(EmpresaSolicitud);

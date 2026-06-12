@@ -299,4 +299,17 @@ async getDetalle(@Param('id') id: string) {
   return this.cuponService.obtenerDetalleCupon(id);
 }
 
+  @Patch(':cuponId/abrir-regalo')
+  @Auth()
+  @ApiOperation({
+    summary: 'El destinatario abre su regalo (marca regaloAbierto=true)',
+  })
+  @ApiParam({ name: 'cuponId', description: 'ID del cupón (MongoID)' })
+  async abrirRegalo(
+    @Param('cuponId') cuponId: string,
+    @Body() body: { clienteId: string },
+  ) {
+    return this.cuponService.abrirRegalo(cuponId, body.clienteId);
+  }
+
 }

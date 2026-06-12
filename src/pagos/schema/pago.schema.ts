@@ -37,6 +37,26 @@ export class Pago {
 
   @Prop({ default: 'payphone' })
   metodo: string;
+
+  // Datos del comprador (para "regaloDe" y correos).
+  @Prop({ default: '' })
+  nombreCliente: string;
+
+  @Prop({ default: '' })
+  emailCliente: string;
+
+  // ── Regalo ──────────────────────────────────────────────────────────
+  @Prop({ type: Boolean, default: false })
+  esRegalo: boolean;
+
+  @Prop({ type: Types.ObjectId, ref: 'Cliente', default: null })
+  destinatarioId: Types.ObjectId;
+
+  @Prop({ default: '' })
+  destinatarioNombre: string;
+
+  @Prop({ default: '' })
+  mensajeRegalo: string;
 }
 
 export const PagoSchema = SchemaFactory.createForClass(Pago);

@@ -2,6 +2,7 @@ import {
   ForbiddenException,
   Injectable,
   Logger,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 
@@ -33,6 +34,70 @@ export class AuthService {
     private readonly auditoria: AuditoriaService,
     private readonly config: ConfigService,
   ) {}
+
+  // Devuelve qué tipos de cuenta existen para un correo (cliente y/o usuario).
+  // El mismo correo puede existir en ambas colecciones (unique es por colección).
+  async checkAccountTypes(
+    correo: string,
+  ): Promise<{ cliente: boolean; usuario: boolean }> {
+    const email = (correo ?? '').toLowerCase().trim();
+    if (!email) return { cliente: false, usuario: false };
+    const [cli, usr] = await Promise.all([
+      this.clienteService.findByEmail(email),
+      this.usuariosService.findByEmail(email),
+    ]);
+    return { cliente: !!cli, usuario: !!usr };
+  }
+
+  // Cambia a la cuenta "hermana" del mismo correo (cliente <-> usuario) usando
+  // la sesión actual válida. No pide contraseña: el usuario ya está autenticado.
+  async switchAccount(currentUser: any) {
+    const email = (currentUser?.email ?? '').toLowerCase().trim();
+    if (!email) throw new UnauthorizedException('Sesión inválida');
+    const currentKind = currentUser?.kind === 'CLIENTE' ? 'CLIENTE' : 'USUARIO';
+
+    if (currentKind === 'CLIENTE') {
+      // Cambiar a USUARIO / empresa
+      const user: any = await this.usuariosService.findByEmail(email);
+      if (!user) {
+        throw new NotFoundException(
+          'No tienes una cuenta de empresa con este correo',
+        );
+      }
+      if (user.estado === false) {
+        throw new UnauthorizedException('La cuenta de empresa está inactiva');
+      }
+      const accessToken = this.jwtService.sign({
+        sub: user._id,
+        kind: 'USUARIO' as const,
+      });
+      const permisos = await this.rolesService.getPermisosForUsuario(user);
+      const userObj = user.toObject ? user.toObject() : { ...user };
+      return {
+        accessToken,
+        kind: 'USUARIO',
+        user: { ...userObj, _id: userObj._id?.toString(), permisos },
+      };
+    } else {
+      // Cambiar a CLIENTE
+      const cli: any = await this.clienteService.findByEmail(email);
+      if (!cli) {
+        throw new NotFoundException(
+          'No tienes una cuenta de cliente con este correo',
+        );
+      }
+      if (cli.deleted) {
+        throw new UnauthorizedException('Esta cuenta ha sido eliminada');
+      }
+      const accessToken = this.jwtService.sign({
+        sub: cli._id,
+        kind: 'CLIENTE' as const,
+      });
+      const cliObj = cli.toObject ? cli.toObject() : { ...cli };
+      delete cliObj.password;
+      return { accessToken, kind: 'CLIENTE', cliente: cliObj };
+    }
+  }
 
   async loginUsuario(
     { correo, clave }: { correo: string; clave: string },

@@ -31,10 +31,17 @@ import { RolesModule } from './roles/roles.module';
 import { AuditoriaModule } from './auditoria/auditoria.module';
 import { PagosModule } from './pagos/pagos.module';
 import { HistorialEstablecimientosModule } from './historial-establecimientos/historial-establecimientos.module';
+import { ScheduleModule } from '@nestjs/schedule';
+import { TareasCronModule } from './tareas-cron/tareas-cron.module';
+import { PromocionesFlashModule } from './promociones-flash/promociones-flash.module';
+import { ChatModule } from './chat/chat.module';
+import { ReportesModule } from './reportes/reportes.module';
+import { CampanasModule } from './campanas/campanas.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, load: [configuration] }),
+    ScheduleModule.forRoot(),
     DatabaseModule,
     LogsModule,
     UsuariosModule,
@@ -62,6 +69,11 @@ import { HistorialEstablecimientosModule } from './historial-establecimientos/hi
     AuditoriaModule,
     PagosModule,
     HistorialEstablecimientosModule,
+    TareasCronModule,
+    PromocionesFlashModule,
+    ChatModule,
+    ReportesModule,
+    CampanasModule,
   ],
   controllers: [AppController],
   providers: [AppService],

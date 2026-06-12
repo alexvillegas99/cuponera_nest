@@ -68,6 +68,25 @@ export class AuthController {
     return res.status(200).json(result);
   }
 
+  @ApiOperation({
+    summary: 'Tipos de cuenta existentes para un correo (cliente y/o usuario)',
+  })
+  @Post('account-types')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { correo: { type: 'string' } },
+      example: { correo: 'usuario@ejemplo.com' },
+    },
+  })
+  async accountTypes(
+    @Body() body: { correo: string },
+    @Res() res: Response,
+  ) {
+    const result = await this.authService.checkAccountTypes(body?.correo);
+    return res.status(200).json(result);
+  }
+
   @ApiOperation({ summary: 'Registro de cliente con auto-login (devuelve accessToken)' })
   @Post('register/cliente')
   async registerCliente(@Body() dto: any, @Res() res: Response) {
@@ -152,6 +171,16 @@ export class AuthController {
     const ubicacion = (ip?.city && ip?.country) ? `${ip.city} - ${ip.country}` : 'Red interna';
     const dispositivo = (ua?.os?.name ?? 'Desconocido') + (ua?.device?.vendor ? ` · ${ua.device.vendor}` : '');
     const result = await this.authService.loginUsuarioWithApple(body.idToken, ipQuery, ubicacion, dispositivo);
+    return res.status(200).json(result);
+  }
+
+  @Auth()
+  @ApiOperation({
+    summary: 'Cambia a la cuenta hermana del mismo correo (cliente <-> empresa)',
+  })
+  @Post('switch')
+  async switchAccount(@GetUser() user: any, @Res() res: Response) {
+    const result = await this.authService.switchAccount(user);
     return res.status(200).json(result);
   }
 

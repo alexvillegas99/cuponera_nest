@@ -45,8 +45,21 @@ export interface ComentarioDto {
   fecha?: string; // ISO
 }
 
+export interface PromoFlashMiniDto {
+  _id: string;
+  titulo: string;
+  descripcion: string;
+  imagenUrl: string;
+  tipo: string;
+  etiqueta?: string | null;
+  vence: Date | string;
+  canjeable: boolean;
+}
+
 export interface ComercioMiniResponse {
   promoPrincipal?: PromoPrincipalDto;
+  promocionesFlash?: PromoFlashMiniDto[];
+  tieneFlash?: boolean;
   ciudades: string[];
   categorias: string[];
   promedioCalificacion: number;

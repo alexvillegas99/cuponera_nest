@@ -48,6 +48,7 @@
     @Prop({ type: String }) telefono?: string;
     @Prop({ type: String }) direccion?: string;
     @Prop({ type: Date }) fechaNacimiento?: Date;
+    @Prop({ type: String }) fotoUrl?: string; // foto de perfil (URL en S3)
     @Prop({ type: String, default: 'cliente' })
     rol?: string;
 
@@ -67,6 +68,39 @@
 
     @Prop({ type: String })
     emailOriginal?: string;
+
+    // ── Ubicación (para segmentación de notificaciones, contenido local) ──
+    @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'Provincia', default: null, index: true })
+    provincia?: mongoose.Types.ObjectId | null;
+
+    @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'Ciudad', default: null, index: true })
+    ciudad?: mongoose.Types.ObjectId | null;
+
+    // ── Preferencias de notificación ──
+    /**
+     * - push: si false → llegan silenciosas (sin sonido/banner) pero igual aparecen en la campana.
+     * - promociones / nuevosLocales / actualizaciones: filtro por categoría.
+     */
+    @Prop({
+      type: {
+        push: { type: Boolean, default: true },
+        promociones: { type: Boolean, default: true },
+        nuevosLocales: { type: Boolean, default: true },
+        actualizaciones: { type: Boolean, default: true },
+      },
+      default: () => ({
+        push: true,
+        promociones: true,
+        nuevosLocales: true,
+        actualizaciones: true,
+      }),
+    })
+    prefsNotif?: {
+      push: boolean;
+      promociones: boolean;
+      nuevosLocales: boolean;
+      actualizaciones: boolean;
+    };
   }
 
   export const ClienteSchema = SchemaFactory.createForClass(Cliente);

@@ -32,10 +32,52 @@ export class UsuariosService {
     private readonly comentarioModel: Model<ComentarioDocument>,
     @InjectModel(Ciudad.name)
     private readonly ciudadModel: Model<any>,
+    @InjectModel('PromocionFlash')
+    private readonly flashModel: Model<any>,
     private readonly amazonS3Service: AmazonS3Service,
     private readonly mailService: MailService,
     private readonly dateService: DateTimeService,
   ) {}
+
+  /** Set de localIds que tienen al menos una promoción flash ACTIVA y vigente. */
+  private async _localesConFlash(localIds: any[]): Promise<Set<string>> {
+    if (!localIds || !localIds.length) return new Set();
+    const now = new Date();
+    const rows = await this.flashModel
+      .find({
+        usuario: { $in: localIds },
+        estado: 'ACTIVA',
+        inicia: { $lte: now },
+        vence: { $gt: now },
+      })
+      .select('usuario')
+      .lean();
+    return new Set(rows.map((r: any) => String(r.usuario)));
+  }
+
+  /** Promociones flash ACTIVAS y vigentes de un local (para el detalle). */
+  private async _flashDeLocal(localId: string): Promise<any[]> {
+    const now = new Date();
+    const rows = await this.flashModel
+      .find({
+        usuario: new Types.ObjectId(localId),
+        estado: 'ACTIVA',
+        inicia: { $lte: now },
+        vence: { $gt: now },
+      })
+      .sort({ vence: 1 })
+      .lean();
+    return rows.map((p: any) => ({
+      _id: String(p._id),
+      titulo: p.titulo,
+      descripcion: p.descripcion ?? '',
+      imagenUrl: p.imagenUrl,
+      tipo: p.tipo,
+      etiqueta: p.etiqueta ?? null,
+      vence: p.vence,
+      canjeable: p.canjeable === true,
+    }));
+  }
 
   /** Establecimientos con promo de TODA una provincia (expande a sus ciudades). */
   async findByProvinciaConPromo(provinciaId: string) {
@@ -334,10 +376,15 @@ export class UsuariosService {
   async create(dto: any): Promise<any> {
     const existeEmail = await this.findByEmail(dto.email);
     if (existeEmail) throw new BadRequestException('El email ya está en uso');
+
+    // Los establecimientos/usuarios SIEMPRE se crean activos (forzado).
+    dto.estado = true;
     let claveSinEncriptar;
-    //crearClaveAleatoria
+    // Clave por defecto = cédula/RUC del establecimiento.
+    // Si no viene identificación, caemos a una clave aleatoria de respaldo.
     if (!dto.clave) {
-      dto.clave = this.strongPassword(12); // generar clave aleatoria de 12 caracteres
+      const idDoc = (dto.identificacion ?? '').toString().trim();
+      dto.clave = idDoc.length >= 6 ? idDoc : this.strongPassword(12);
       claveSinEncriptar = dto.clave;
     }
 
@@ -368,6 +415,7 @@ export class UsuariosService {
       email: dto.email,
       fecha,
       anio,
+      clave_inicial: claveSinEncriptar ?? '(definida por el administrador)',
       enlace_portal: 'https://portal.ecuenjoy.com/',
       enlace_soporte:  'https://portal.ecuenjoy.com/soporte',
     });
@@ -417,7 +465,26 @@ export class UsuariosService {
       provinciaNombre = c0.provincia.nombre ?? null;
     }
 
-    return { ...this.mapNombres(usuario), provinciaId, provinciaNombre };
+    // Conservar los IDs originales (mapNombres los reemplaza por strings).
+    // Sin esto, el front de edición no puede precargar los selectores.
+    const ciudadesIds: string[] = Array.isArray(usuario.ciudades)
+      ? usuario.ciudades
+          .map((c: any) => String(c?._id ?? c))
+          .filter((id: string) => id && id !== 'undefined')
+      : [];
+    const categoriasIds: string[] = Array.isArray(usuario.categorias)
+      ? usuario.categorias
+          .map((c: any) => String(c?._id ?? c))
+          .filter((id: string) => id && id !== 'undefined')
+      : [];
+
+    return {
+      ...this.mapNombres(usuario),
+      provinciaId,
+      provinciaNombre,
+      ciudadesIds,
+      categoriasIds,
+    };
   }
 
   async delete(id: string): Promise<{ ok: true }> {
@@ -436,6 +503,28 @@ export class UsuariosService {
   }
 
   async update(id: string, dto: any) {
+    // Nunca intentar actualizar campos inmutables/internos: si el cliente (p. ej.
+    // el panel web) manda `_id`/`__v` en el body, MongoDB rechaza TODO el update
+    // ("would modify the immutable field '_id'") y no se guarda nada.
+    if (dto && typeof dto === 'object') {
+      delete dto._id;
+      delete dto.__v;
+      delete dto.createdAt;
+      delete dto.updatedAt;
+
+      // Protección contra borrado accidental en guardado por secciones:
+      // un array VACÍO de ciudades/categorías NO debe sobrescribir lo existente
+      // (p. ej. el panel envía la sección "Ubicación" con ciudades:[] porque el
+      // selector aún no cargó la ciudad). Si de verdad se quiere vaciar, se hace
+      // con un valor explícito distinto, no desde el guardado por sección.
+      if (Array.isArray(dto.ciudades) && dto.ciudades.length === 0) {
+        delete dto.ciudades;
+      }
+      if (Array.isArray(dto.categorias) && dto.categorias.length === 0) {
+        delete dto.categorias;
+      }
+    }
+
     if (dto.email) {
       const existente = await this.findByEmail(dto.email);
       if (existente && String(existente._id) !== String(id)) {
@@ -550,6 +639,7 @@ export class UsuariosService {
           estado: true,
         },
         {
+          nombre: 1,
           detallePromocion: 1,
           ciudades: 1,
           categorias: 1,
@@ -560,6 +650,8 @@ export class UsuariosService {
       .populate('ciudades', 'nombre')
       .populate('categorias', 'nombre')
       .lean();
+
+    const flashSet = await this._localesConFlash(docs.map((d: any) => d._id));
 
     return docs.map((d: any) => {
       const ratingFromRoot =
@@ -572,12 +664,20 @@ export class UsuariosService {
       const detalleOriginal = d?.detallePromocion ?? {};
       const detalle = {
         ...detalleOriginal,
+        // Si la promo no tiene placeName, usar el nombre del local (evita
+        // que la app muestre "Comercio" cuando la promo está incompleta).
+        placeName:
+          detalleOriginal.placeName &&
+          String(detalleOriginal.placeName).trim()
+            ? detalleOriginal.placeName
+            : (d.nombre ?? ''),
         id: negocioIdStr,
         rating: ratingFromRoot,
       };
 
       return {
         _id: negocioIdStr,
+        tieneFlash: flashSet.has(negocioIdStr),
         detallePromocion: detalle,
         ubicacion: d.ubicacion ?? null,
         ciudades: Array.isArray(d.ciudades)
@@ -621,19 +721,25 @@ export class UsuariosService {
   }
 
   /** Mapea un doc de usuario al shape de promo que consume la app. */
-  private _mapPromoDoc(d: any) {
+  private _mapPromoDoc(d: any, flashSet?: Set<string>) {
     const ratingFromRoot =
       typeof d?.promedioCalificacion === 'number'
         ? d.promedioCalificacion
         : null;
     const negocioIdStr = String(d._id);
+    const dp = d?.detallePromocion ?? {};
     const detalle = {
-      ...(d?.detallePromocion ?? {}),
+      ...dp,
+      placeName:
+        dp.placeName && String(dp.placeName).trim()
+          ? dp.placeName
+          : (d.nombre ?? ''),
       id: negocioIdStr,
       rating: ratingFromRoot,
     };
     return {
       _id: negocioIdStr,
+      tieneFlash: flashSet ? flashSet.has(negocioIdStr) : false,
       detallePromocion: detalle,
       ubicacion: d.ubicacion ?? null,
       ciudades: Array.isArray(d.ciudades)
@@ -760,6 +866,7 @@ export class UsuariosService {
     }
 
     const projection: any = {
+      nombre: 1,
       detallePromocion: 1,
       ciudades: 1,
       categorias: 1,
@@ -792,10 +899,11 @@ export class UsuariosService {
         .populate('categorias', 'nombre')
         .lean();
       const byId = new Map(docs.map((d: any) => [String(d._id), d]));
+      const flashSet = await this._localesConFlash(docs.map((d: any) => d._id));
       const data = pageIds
         .map((id) => byId.get(id))
         .filter(Boolean)
-        .map((d: any) => this._mapPromoDoc(d));
+        .map((d: any) => this._mapPromoDoc(d, flashSet));
       return { data, total, page, limit, hasMore: page * limit < total };
     }
 
@@ -810,8 +918,9 @@ export class UsuariosService {
       .limit(limit)
       .lean();
 
+    const flashSet = await this._localesConFlash(docs.map((d: any) => d._id));
     return {
-      data: docs.map((d: any) => this._mapPromoDoc(d)),
+      data: docs.map((d: any) => this._mapPromoDoc(d, flashSet)),
       total,
       page,
       limit,
@@ -830,6 +939,7 @@ export class UsuariosService {
 
     const u: any = await this.usuarioModel
       .findById(usuarioId, {
+        nombre: 1,
         ciudades: 1,
         categorias: 1,
         detallePromocion: 1,
@@ -852,7 +962,11 @@ export class UsuariosService {
       ? {
           id: u.detallePromocion.id,
           title: u.detallePromocion.title,
-          placeName: u.detallePromocion.placeName,
+          placeName:
+            u.detallePromocion.placeName &&
+            String(u.detallePromocion.placeName).trim()
+              ? u.detallePromocion.placeName
+              : (u.nombre ?? ''),
           description: u.detallePromocion.description,
           imageUrl: u.detallePromocion.imageUrl,
           logoUrl: u.detallePromocion.logoUrl,
@@ -920,8 +1034,13 @@ export class UsuariosService {
       }));
     }
 
+    // Promociones flash activas y vigentes del local.
+    const promocionesFlash = await this._flashDeLocal(usuarioId);
+
     return {
       promoPrincipal: promo,
+      promocionesFlash,
+      tieneFlash: promocionesFlash.length > 0,
       ciudades: Array.isArray(u.ciudades)
         ? u.ciudades.map((c: any) => c?.nombre).filter(Boolean)
         : [],
@@ -1010,9 +1129,12 @@ export class UsuariosService {
             detallePromocion: 1,
             promedioCalificacion: 1,
             telefono: 1,
+            usuarioCreacion: 1,
+            createdAt: 1,
           })
           .populate('ciudades', 'nombre')
           .populate('categorias', 'nombre')
+          .populate('usuarioCreacion', 'nombre email rol')
           .sort({ createdAt: -1 })
           .skip(skip)
           .limit(safeLimit)

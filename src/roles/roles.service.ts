@@ -27,6 +27,18 @@ export class RolesService implements OnModuleInit {
    // await this.seed();
   }
 
+  /**
+   * Slugs de roles obsoletos que se eliminan en cada arranque.
+   * Antes de borrar, se reasignan los usuarios afectados a un rol vigente.
+   */
+  private readonly ROLES_OBSOLETOS: Array<{ slug: string; reasignarA: string }> = [
+    { slug: 'visualizador', reasignarA: 'staff' },
+    { slug: 'mkt-fotos', reasignarA: 'marketing' },
+    { slug: 'soporte', reasignarA: 'admin' },
+    { slug: 'contador', reasignarA: 'admin' },
+    { slug: 'supervisor', reasignarA: 'admin' },
+  ];
+
   /** Semilla de roles por defecto — upsert para actualizar permisos en cada arranque */
   private async seed() {
     this.logger.log('Sincronizando roles por defecto...');
@@ -41,14 +53,11 @@ export class RolesService implements OnModuleInit {
       return ['dashboard-local', 'historico'].includes(modulo);
     });
 
-    const permisosVisualizador = TODOS_LOS_PERMISOS.filter((p) => p.endsWith('.ver'));
-
     const roles = [
       // ── Sistema ──
       { nombre: 'Administrador', descripcion: 'Acceso total al sistema', permisos: [...TODOS_LOS_PERMISOS], esSistema: true, slug: 'admin' },
       { nombre: 'Admin Local', descripcion: 'Administrador de establecimiento local', permisos: permisosAdminLocal, esSistema: true, slug: 'admin-local' },
       { nombre: 'Staff', descripcion: 'Personal con acceso básico', permisos: permisosStaff, esSistema: true, slug: 'staff' },
-      { nombre: 'Visualizador', descripcion: 'Solo lectura', permisos: permisosVisualizador, esSistema: true, slug: 'visualizador' },
       // ── Predefinidos ──
       {
         nombre: 'Vendedor',
@@ -58,39 +67,19 @@ export class RolesService implements OnModuleInit {
         slug: 'vendedor',
       },
       {
-        nombre: 'MKT Fotos',
-        descripcion: 'Solo puede actualizar las fotos (imagen y logo) de cualquier establecimiento.',
-        permisos: ['web.acceso', 'establecimientos.ver', 'establecimientos.fotos'],
-        esSistema: false,
-        slug: 'mkt-fotos',
-      },
-      {
-        nombre: 'Soporte',
-        descripcion: 'Atención al cliente y gestión de solicitudes',
-        permisos: ['web.acceso', 'dashboard.ver', 'clientes.ver', 'clientes.editar', 'solicitudes.ver', 'solicitudes.aprobar', 'cupones.ver', 'cupones.asignar', 'historico.ver'],
-        esSistema: false,
-        slug: 'soporte',
-      },
-      {
-        nombre: 'Contador',
-        descripcion: 'Acceso a reportes y consultas financieras',
-        permisos: ['web.acceso', 'dashboard.ver', 'reportes.ver', 'cupones.ver', 'clientes.ver', 'solicitudes.ver', 'pagos.ver', 'historico.ver'],
-        esSistema: false,
-        slug: 'contador',
-      },
-      {
         nombre: 'Marketing',
-        descripcion: 'Gestión de contenido y promociones',
-        permisos: ['web.acceso', 'dashboard.ver', 'cupones.ver', 'cupones.crear', 'cupones.lote', 'versiones.ver', 'versiones.crear', 'versiones.editar', 'categorias.ver', 'categorias.crear', 'categorias.editar', 'establecimientos.ver', 'notificaciones.ver', 'notificaciones.enviar'],
+        descripcion: 'Gestión de contenido, promociones y atención por chat',
+        permisos: [
+          'web.acceso', 'dashboard.ver',
+          'cupones.ver', 'cupones.crear', 'cupones.lote',
+          'versiones.ver', 'versiones.crear', 'versiones.editar',
+          'categorias.ver', 'categorias.crear', 'categorias.editar',
+          'establecimientos.ver',
+          'notificaciones.ver', 'notificaciones.enviar',
+          'chat.ver', 'chat.responder',
+        ],
         esSistema: false,
         slug: 'marketing',
-      },
-      {
-        nombre: 'Supervisor',
-        descripcion: 'Supervisión general sin acceso a configuración',
-        permisos: ['web.acceso', 'dashboard.ver', 'usuarios.ver', 'clientes.ver', 'cupones.ver', 'establecimientos.ver', 'reportes.ver', 'solicitudes.ver', 'historico.ver', 'categorias.ver', 'ciudades.ver', 'versiones.ver', 'pagos.ver'],
-        esSistema: false,
-        slug: 'supervisor',
       },
     ];
 
@@ -111,6 +100,45 @@ export class RolesService implements OnModuleInit {
     }
 
     this.logger.log(`Roles sincronizados: ${creados} creados, ${actualizados} actualizados`);
+
+    await this.eliminarRolesObsoletos();
+  }
+
+  /**
+   * Reasigna usuarios y borra de la BD los roles obsoletos.
+   * Idempotente: si ya no existen, no hace nada.
+   */
+  private async eliminarRolesObsoletos() {
+    const Usuario = this.rolModel.db.model('Usuario');
+
+    for (const { slug, reasignarA } of this.ROLES_OBSOLETOS) {
+      const obsoleto: any = await this.rolModel.findOne({ slug });
+      if (!obsoleto) continue;
+
+      const destino: any = await this.rolModel.findOne({ slug: reasignarA });
+      if (!destino) {
+        this.logger.warn(
+          `Rol obsoleto "${slug}" NO eliminado: el rol destino "${reasignarA}" no existe.`,
+        );
+        continue;
+      }
+
+      // Reasignar usuarios que apuntan al rol obsoleto.
+      const filtroRef = { rolRef: obsoleto._id };
+      const filtroSlug = { rol: slug };
+      const r1 = await Usuario.updateMany(filtroRef, {
+        $set: { rolRef: destino._id, rol: destino.slug },
+      });
+      const r2 = await Usuario.updateMany(filtroSlug, {
+        $set: { rolRef: destino._id, rol: destino.slug },
+      });
+      const reasignados = (r1.modifiedCount || 0) + (r2.modifiedCount || 0);
+
+      await this.rolModel.deleteOne({ _id: obsoleto._id });
+      this.logger.log(
+        `Rol obsoleto "${slug}" eliminado. ${reasignados} usuario(s) reasignado(s) a "${reasignarA}".`,
+      );
+    }
   }
 
   async create(dto: CreateRolDto) {

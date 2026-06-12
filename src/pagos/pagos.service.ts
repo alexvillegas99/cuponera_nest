@@ -51,6 +51,10 @@ export class PagosService {
     telefonoCliente?: string;
     cuponeraNombre: string;
     cuponeraPrecio: string;
+    esRegalo?: boolean;
+    destinatarioId?: string;
+    destinatarioNombre?: string;
+    mensajeRegalo?: string;
   }): Promise<{ formularioUrl: string; clientTransactionId: string }> {
     this.logger.log(`[PayPhone] Iniciando — cliente: ${data.clienteId}, cuponera: ${data.cuponeraNombre}, precio: ${data.cuponeraPrecio}`);
 
@@ -77,6 +81,15 @@ export class PagosService {
       clientTransactionId,
       status: 'PENDIENTE',
       metodo: 'payphone',
+      nombreCliente: data.nombreCliente ?? '',
+      emailCliente: data.emailCliente ?? '',
+      esRegalo: data.esRegalo === true,
+      destinatarioId:
+        data.esRegalo && data.destinatarioId
+          ? new Types.ObjectId(data.destinatarioId)
+          : null,
+      destinatarioNombre: data.esRegalo ? (data.destinatarioNombre ?? '') : '',
+      mensajeRegalo: data.esRegalo ? (data.mensajeRegalo ?? '') : '',
     });
 
     const backendUrl = process.env.BACKEND_PUBLIC_URL ?? '';
@@ -366,6 +379,10 @@ export class PagosService {
     cuponeraPrecio: string;
     returnUrl: string;
     cancelUrl: string;
+    esRegalo?: boolean;
+    destinatarioId?: string;
+    destinatarioNombre?: string;
+    mensajeRegalo?: string;
   }) {
     this.logger.log(`[PayPal] Iniciando orden — cliente: ${data.clienteId}, cuponera: ${data.cuponeraNombre}, precio: ${data.cuponeraPrecio}`);
 
@@ -392,6 +409,15 @@ export class PagosService {
       clientTransactionId,
       status: 'PENDIENTE',
       metodo: 'paypal',
+      nombreCliente: data.nombreCliente ?? '',
+      emailCliente: data.emailCliente ?? '',
+      esRegalo: data.esRegalo === true,
+      destinatarioId:
+        data.esRegalo && data.destinatarioId
+          ? new Types.ObjectId(data.destinatarioId)
+          : null,
+      destinatarioNombre: data.esRegalo ? (data.destinatarioNombre ?? '') : '',
+      mensajeRegalo: data.esRegalo ? (data.mensajeRegalo ?? '') : '',
     });
     this.logger.log(`[PayPal] Pago local creado — id: ${pago._id}, txn: ${clientTransactionId}`);
 
@@ -537,12 +563,16 @@ export class PagosService {
     try {
       const solicitud: any = await this.solicitudService.create({
         cliente: pago.cliente,
-        nombreCliente: '',
-        emailCliente: '',
+        nombreCliente: pago.nombreCliente ?? '',
+        emailCliente: pago.emailCliente ?? '',
         cuponeraNombre: pago.cuponeraNombre,
         cuponeraPrecio: pago.cuponeraPrecio,
         montoTransferido: pago.monto.toString(),
         observaciones: `Pago ${referencia}`,
+        esRegalo: pago.esRegalo === true,
+        destinatarioId: pago.esRegalo ? pago.destinatarioId : undefined,
+        destinatarioNombre: pago.esRegalo ? pago.destinatarioNombre : undefined,
+        mensajeRegalo: pago.esRegalo ? pago.mensajeRegalo : undefined,
       });
 
       await this.solicitudService.updateEstado(

@@ -157,11 +157,22 @@ export class SolicitudCuponeraService {
     return doc;
   }
 
-  async findByCliente(clienteId: string): Promise<SolicitudCuponera[]> {
-    return this.model
+  async findByCliente(clienteId: string): Promise<any[]> {
+    const docs = await this.model
       .find({ cliente: clienteId })
       .sort({ createdAt: -1 })
-      .exec();
+      .populate({ path: 'cuponRegaloId', select: 'regaloAbierto' })
+      .lean();
+
+    // Para regalos, exponer si el destinatario ya lo abrió.
+    return docs.map((d: any) => {
+      const out = { ...d };
+      if (d.esRegalo) {
+        out.regaloAbierto = d.cuponRegaloId?.regaloAbierto === true;
+      }
+      // No filtramos cuponRegaloId; el front solo usa regaloAbierto.
+      return out;
+    });
   }
 
   async updateEstado(
@@ -192,10 +203,18 @@ export class SolicitudCuponeraService {
       // Push
       if (clienteId) {
         const fcmToken = await this.clientesService.obtenerFcmToken(clienteId);
+        const tituloPush = doc.esRegalo
+          ? '¡Regalo enviado! 🎁'
+          : '¡Solicitud aprobada! 🎉';
+        const cuerpoPush = doc.esRegalo
+          ? `Tu regalo "${doc.cuponeraNombre}" fue enviado a ${
+              doc.destinatarioNombre ?? 'tu destinatario'
+            }.`
+          : `Tu cuponera "${doc.cuponeraNombre}" fue aprobada. ¡Ya puedes usarla!`;
         await this.notificacionesService.enviarAToken(
           fcmToken,
-          '¡Solicitud aprobada! 🎉',
-          `Tu cuponera "${doc.cuponeraNombre}" fue aprobada. ¡Ya puedes usarla!`,
+          tituloPush,
+          cuerpoPush,
         );
       }
       // Correo
@@ -290,6 +309,42 @@ export class SolicitudCuponeraService {
     // Tomar la primera coincidencia
     const version = versiones[0];
 
+    // ── Regalo ────────────────────────────────────────────────────────
+    // El cupón se asigna al DESTINATARIO pero queda "cerrado" hasta que
+    // la persona lo abre. Se le notifica de forma especial.
+    if (solicitud.esRegalo && solicitud.destinatarioId) {
+      const cupon = await this.cuponService.create({
+        version: version._id,
+        cliente: solicitud.destinatarioId,
+        esRegalo: true,
+        regaloAbierto: false,
+        regaloDe: solicitud.nombreCliente,
+        regaloMensaje: solicitud.mensajeRegalo ?? null,
+        compradorId: solicitud.cliente,
+      });
+
+      this.logger.log(
+        `Regalo (cupón ${cupon._id}) creado para destinatario ${solicitud.destinatarioId} desde solicitud ${solicitud._id}`,
+      );
+
+      // Guardar referencia del cupón en la solicitud (para ver si se abrió).
+      try {
+        await this.model.updateOne(
+          { _id: solicitud._id },
+          { cuponRegaloId: cupon._id },
+        );
+      } catch (e) {
+        this.logger.error(`Error guardando cuponRegaloId: ${e?.message}`);
+      }
+
+      // Notificar al destinatario (best-effort).
+      this._notificarRegaloAlDestinatario(solicitud, cupon).catch((e) =>
+        this.logger.error(`Error notificando regalo: ${e?.message}`),
+      );
+
+      return cupon;
+    }
+
     // Crear cupón activo asignado al cliente
     const cupon = await this.cuponService.create({
       version: version._id,
@@ -301,5 +356,70 @@ export class SolicitudCuponeraService {
     );
 
     return cupon;
+  }
+
+  /** Push + correo especial al destinatario de un regalo. */
+  private async _notificarRegaloAlDestinatario(
+    solicitud: any,
+    cupon: any,
+  ) {
+    const destinatarioId = solicitud.destinatarioId?.toString();
+    if (!destinatarioId) return;
+
+    const titulo = `¡Tienes un regalo de ${solicitud.nombreCliente}! 🎁`;
+    const cuerpo = `Te regalaron la cuponera "${solicitud.cuponeraNombre}". Ábrela en la app para descubrirla.`;
+
+    // Push
+    try {
+      const fcmToken = await this.clientesService.obtenerFcmToken(
+        destinatarioId,
+      );
+      if (fcmToken) {
+        await this.notificacionesService.enviarAToken(fcmToken, titulo, cuerpo);
+      }
+    } catch (e) {
+      this.logger.error(`Error push regalo destinatario: ${e?.message}`);
+    }
+
+    // Correo (best-effort, plantilla genérica si no existe la específica).
+    try {
+      const destinatario = await this.clientesService.findById(destinatarioId);
+      const email = (destinatario as any)?.correo ?? (destinatario as any)?.email;
+      if (email) {
+        const anio = new Date().getFullYear().toString();
+        const mensajeRegalo = (solicitud.mensajeRegalo ?? '').toString().trim();
+        const mensajeSeccion = mensajeRegalo
+          ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"
+               style="margin-bottom:20px; border-radius:12px; border:1px solid #fde6c4; overflow:hidden;" class="msg-box">
+              <tr>
+                <td style="padding:14px 16px; background:#fff8ee;" class="msg-box">
+                  <span style="font:600 11px/1 Arial, sans-serif; color:#c2410c; text-transform:uppercase; letter-spacing:.4px;">Mensaje</span>
+                  <p style="margin:6px 0 0; font:italic 14px/22px Arial, sans-serif; color:#7c2d12;" class="text">${mensajeRegalo}</p>
+                </td>
+              </tr>
+            </table>`
+          : '';
+        let html: string;
+        try {
+          html = this.mailService.getTemplate('regalo-recibido.html', {
+            nombreDestinatario:
+              solicitud.destinatarioNombre ??
+              (destinatario as any)?.nombres ??
+              '',
+            nombreRegalador: solicitud.nombreCliente,
+            cuponera: solicitud.cuponeraNombre,
+            mensaje_seccion: mensajeSeccion,
+            anio,
+          });
+        } catch (_) {
+          html = `<p>${titulo}</p><p>${cuerpo}</p>${
+            mensajeRegalo ? `<blockquote>${mensajeRegalo}</blockquote>` : ''
+          }`;
+        }
+        await this.mailService.enviar(email, titulo, html);
+      }
+    } catch (e) {
+      this.logger.error(`Error correo regalo destinatario: ${e?.message}`);
+    }
   }
 }

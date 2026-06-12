@@ -10,6 +10,10 @@ import {
 } from 'src/comentario/schema/comentario.schema';
 import { Ciudad, CiudadSchema } from 'src/ciudad/schema/ciudad.schema';
 import { S3Module } from 'src/amazon-s3/amazon-s3.module';
+import {
+  PromocionFlash,
+  PromocionFlashSchema,
+} from 'src/promociones-flash/schema/promocion-flash.schema';
 
 @Module({
   imports: [
@@ -17,6 +21,7 @@ import { S3Module } from 'src/amazon-s3/amazon-s3.module';
       { name: Usuario.name, schema: UsuarioSchema },
       { name: Comentario.name, schema: ComentarioSchema },
       { name: Ciudad.name, schema: CiudadSchema },
+      { name: PromocionFlash.name, schema: PromocionFlashSchema },
     ]),
     S3Module
   ],
