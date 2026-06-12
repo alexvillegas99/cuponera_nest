@@ -167,6 +167,37 @@ export class NotificacionesService {
     }
   }
 
+  /**
+   * Devuelve la sección iOS/Android del payload FCM v1 con prioridad alta
+   * y sonido. Sin esto, Apple suele diferir o descartar la entrega — es el
+   * motivo más común de "el token está bien pero no llegan notifs en iOS".
+   */
+  private _platformOverrides(title: string, body: string) {
+    return {
+      apns: {
+        headers: {
+          'apns-priority': '10', // entrega inmediata, alert push
+          'apns-push-type': 'alert',
+        },
+        payload: {
+          aps: {
+            alert: { title, body },
+            sound: 'default',
+            'mutable-content': 1,
+            'content-available': 1,
+          },
+        },
+      },
+      android: {
+        priority: 'high' as const,
+        notification: {
+          sound: 'default',
+          channel_id: 'high_importance_channel',
+        },
+      },
+    };
+  }
+
   /** 🔹 Enviar notificación a un token FCM específico */
   async enviarAToken(
     fcmToken: string | null,
@@ -180,6 +211,7 @@ export class NotificacionesService {
         message: {
           token: fcmToken,
           notification: { title, body },
+          ...this._platformOverrides(title, body),
           ...(data && { data }),
         },
       };
@@ -202,6 +234,7 @@ export class NotificacionesService {
         message: {
           topic,
           notification: { title, body },
+          ...this._platformOverrides(title, body),
           ...(data && { data }),
         },
       };
