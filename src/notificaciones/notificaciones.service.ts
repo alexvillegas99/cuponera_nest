@@ -12,8 +12,18 @@ import {
 @Injectable()
 export class NotificacionesService {
   private credentials: any;
+  /**
+   * Proyecto Firebase activo. Tiene que coincidir con el de los archivos
+   * google-services.json (Android) y GoogleService-Info.plist (iOS) de la
+   * app cliente; si no, FCM rechaza con "SenderId mismatch" porque los
+   * tokens son de otro proyecto.
+   *
+   * Configurable por env para poder rotar sin redeploy.
+   */
+  private readonly FIREBASE_PROJECT_ID =
+    process.env.FIREBASE_PROJECT_ID ?? 'cuponera-5f06a';
   private readonly FCM_URL =
-    'https://fcm.googleapis.com/v1/projects/cuponera-5f06a/messages:send';
+    `https://fcm.googleapis.com/v1/projects/${this.FIREBASE_PROJECT_ID}/messages:send`;
 
   constructor(
     private readonly amazonS3Service: AmazonS3Service,

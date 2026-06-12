@@ -70,6 +70,12 @@ export class CampanasController {
     return this.svc.eliminar(id);
   }
 
+  @Post(':id/duplicar')
+  @Auth('notificaciones.enviar')
+  duplicar(@Param('id') id: string, @GetUser() user: any) {
+    return this.svc.duplicar(id, user);
+  }
+
   // ── Cliente (feed in-app) ──────────────────────────────────────────
   @Get('cliente/feed')
   @Auth()

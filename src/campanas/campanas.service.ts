@@ -208,6 +208,39 @@ export class CampanasService {
   }
 
   /**
+   * Clona una campaña existente como BORRADOR (sin métricas ni entregas).
+   * Útil para reenviar el mismo mensaje a la misma segmentación sin volver
+   * a tipear todo. El admin después decide enviar ya o programar.
+   */
+  async duplicar(id: string, user: any) {
+    if (!isValidObjectId(id)) throw new BadRequestException('ID inválido');
+    const original = await this.campanaModel.findById(id).lean();
+    if (!original) throw new NotFoundException('Campaña no encontrada');
+
+    const sufijo = original.titulo?.includes('(copia)')
+      ? ''
+      : ' (copia)';
+    const clon = await this.campanaModel.create({
+      titulo: `${original.titulo}${sufijo}`,
+      cuerpo: original.cuerpo,
+      imagenUrl: original.imagenUrl || '',
+      tipoSegmento: original.tipoSegmento,
+      provinciaId: original.provinciaId || null,
+      ciudadId: original.ciudadId || null,
+      categoriaId: original.categoriaId || null,
+      topicCustom: original.topicCustom || null,
+      tipoAccion: original.tipoAccion || TipoAccion.NINGUNA,
+      accionRefId: original.accionRefId || null,
+      accionUrl: original.accionUrl || '',
+      estado: EstadoCampana.BORRADOR,
+      programadaPara: null,
+      autorId: user?._id ? new Types.ObjectId(user._id) : original.autorId,
+      autorNombre: user?.nombre || user?.email || original.autorNombre,
+    });
+    return clon.toObject();
+  }
+
+  /**
    * Elimina permanentemente una campaña y sus entregas a clientes.
    * Pensado para limpiar campañas ENVIADAS o CANCELADAS / FALLIDAS
    * que el admin no quiere seguir viendo en el panel ni en la bandeja
