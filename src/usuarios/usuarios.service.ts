@@ -700,6 +700,26 @@ export class UsuariosService {
     return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
+  /**
+   * Día de la semana actual en horario de Ecuador (America/Guayaquil = UTC-5,
+   * sin DST). Devuelve los strings exactos que usa el schema:
+   * 'domingo'|'lunes'|'martes'|'miercoles'|'jueves'|'viernes'|'sabado'.
+   *
+   * Importante: el servidor corre en UTC, así que NO podemos usar
+   * `new Date().getDay()` — daría un día corrido durante toda la noche EC.
+   */
+  private _diaSemanaEnEcuador(d: Date = new Date()): string {
+    const nombre = new Intl.DateTimeFormat('es-EC', {
+      timeZone: 'America/Guayaquil',
+      weekday: 'long',
+    }).format(d);
+    // 'miércoles' → 'miercoles', 'sábado' → 'sabado' (el schema usa sin tilde)
+    return nombre
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '');
+  }
+
   /** Distancia en metros entre dos coordenadas (haversine). */
   private _haversine(
     lat1: number,
@@ -831,16 +851,11 @@ export class UsuariosService {
     }
 
     if (params.isToday) {
-      const dias = [
-        'domingo',
-        'lunes',
-        'martes',
-        'miercoles',
-        'jueves',
-        'viernes',
-        'sabado',
-      ];
-      const hoy = dias[new Date().getDay()];
+      // ⚠ El servidor corre en UTC y los locales venden de noche hasta las
+      // ~23h hora Ecuador (UTC-5). Si usáramos new Date().getDay() del
+      // servidor, a partir de las 19h hora Ecuador ya estaríamos pensando
+      // que es el día siguiente. Usamos Intl con timezone explícita.
+      const hoy = this._diaSemanaEnEcuador();
       filter.$and = [
         ...(filter.$and ?? []),
         {
