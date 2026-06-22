@@ -436,6 +436,28 @@ export class CampanasService {
     return { ok: true, count: r.modifiedCount };
   }
 
+  /**
+   * El cliente elimina UNA entrega de su bandeja. No toca la campaña ni a
+   * los demás clientes — solo borra la fila del usuario actual.
+   */
+  async eliminarEntrega(clienteId: string, entregaId: string) {
+    if (!isValidObjectId(entregaId)) return { ok: false };
+    const r = await this.entregaModel.deleteOne({
+      _id: new Types.ObjectId(entregaId),
+      clienteId: new Types.ObjectId(clienteId),
+    });
+    return { ok: r.deletedCount === 1 };
+  }
+
+  /** El cliente vacía su bandeja entera. */
+  async eliminarTodasEntregas(clienteId: string) {
+    if (!isValidObjectId(clienteId)) return { ok: false };
+    const r = await this.entregaModel.deleteMany({
+      clienteId: new Types.ObjectId(clienteId),
+    });
+    return { ok: true, count: r.deletedCount ?? 0 };
+  }
+
   async contadorNoLeidas(clienteId: string) {
     if (!isValidObjectId(clienteId)) return 0;
     return this.entregaModel.countDocuments({

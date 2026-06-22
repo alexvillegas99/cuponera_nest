@@ -116,6 +116,53 @@ const url = `https://${this.bucketName}.s3.${this.region}.amazonaws.com/${encode
 return { url, key };
 }
 
+  /**
+   * Sube un Buffer arbitrario (PDF, CSV, etc.) a S3 con el content-type
+   * dado. A diferencia de uploadBase64 no infiere el tipo del contenido,
+   * el call site lo declara explícitamente.
+   */
+  async uploadBuffer(args: {
+    buffer: Buffer;
+    contentType: string;
+    route?: string;
+    /** Nombre del archivo (sin path). Si se omite, se genera uno con uuid. */
+    fileName?: string;
+  }): Promise<{ url: string; key: string }> {
+    if (!args?.buffer) throw new BadRequestException('Buffer vacío.');
+
+    const ext = (() => {
+      switch (args.contentType) {
+        case 'application/pdf':
+          return 'pdf';
+        case 'image/jpeg':
+        case 'image/jpg':
+          return 'jpg';
+        case 'image/png':
+          return 'png';
+        case 'image/webp':
+          return 'webp';
+        case 'text/csv':
+          return 'csv';
+        default:
+          return 'bin';
+      }
+    })();
+    const fileName = args.fileName ?? `${uuidv4()}.${ext}`;
+    const folder = this.normalizeFolder(args.route);
+    const key = this.buildKey(folder, fileName);
+
+    const put = new PutObjectCommand({
+      Bucket: this.bucketName,
+      Key: key,
+      Body: args.buffer,
+      ContentType: args.contentType,
+      CacheControl: 'public, max-age=31536000, immutable',
+    });
+    await this.s3.send(put);
+    const url = `https://${this.bucketName}.s3.${this.region}.amazonaws.com/${encodeURI(key)}`;
+    return { url, key };
+  }
+
 
   async deleteImageByUrl(imageUrlOrKey: string, versionId?: string): Promise<boolean> {
     try {

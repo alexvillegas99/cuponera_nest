@@ -218,6 +218,47 @@ export class Usuario {
   /** Estado activo / Active flag */
   @Prop({ default: true }) estado: boolean;
 
+  // ── Contrato de cooperación con Enjoy (solo admin-local nuevos) ──
+  /**
+   * El admin-local debe aceptar el contrato la primera vez que entra
+   * (app o web) tras el registro. Mientras sea false → se le bloquea el
+   * acceso al panel hasta que lo firme.
+   *
+   * Para los admin-local creados ANTES de la activación de esta feature
+   * un seed los marca como aceptado=true (FECHA_CORTE en bootstrap).
+   */
+  @Prop({ type: Boolean, default: false, index: true })
+  contratoAceptado?: boolean;
+
+  @Prop({ type: Date, default: null })
+  contratoAceptadoEn?: Date | null;
+
+  /** PDF firmado almacenado en S3. */
+  @Prop({ type: String, default: null })
+  contratoUrl?: string | null;
+
+  /** Foto de cédula del representante en S3. */
+  @Prop({ type: String, default: null })
+  cedulaUrl?: string | null;
+
+  /** Versión del template usado, p.ej. "v1". */
+  @Prop({ type: String, default: null })
+  contratoVersion?: string | null;
+
+  /** Datos adicionales del local capturados en el flujo de aceptación. */
+  @Prop({ type: String, default: null })
+  ruc?: string | null;
+  @Prop({ type: String, default: null })
+  direccion?: string | null;
+  @Prop({ type: String, default: null })
+  representanteLegal?: string | null;
+  @Prop({ type: String, default: null })
+  cedulaRepresentante?: string | null;
+  @Prop({ type: String, default: null })
+  estadoCivilRepresentante?: string | null;
+  @Prop({ type: String, default: null })
+  celular?: string | null;
+
   /** Usuario que creó este registro (responsable) / Creator user (responsible) */
   @Prop({ type: Types.ObjectId, ref: Usuario.name, default: null })
   usuarioCreacion: Types.ObjectId;

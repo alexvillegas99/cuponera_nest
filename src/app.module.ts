@@ -37,6 +37,7 @@ import { PromocionesFlashModule } from './promociones-flash/promociones-flash.mo
 import { ChatModule } from './chat/chat.module';
 import { ReportesModule } from './reportes/reportes.module';
 import { CampanasModule } from './campanas/campanas.module';
+import { ContratosModule } from './contratos/contratos.module';
 
 @Module({
   imports: [
@@ -74,6 +75,7 @@ import { CampanasModule } from './campanas/campanas.module';
     ChatModule,
     ReportesModule,
     CampanasModule,
+    ContratosModule,
   ],
   controllers: [AppController],
   providers: [AppService],

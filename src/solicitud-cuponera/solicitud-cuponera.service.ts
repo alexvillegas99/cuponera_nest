@@ -12,9 +12,11 @@ import { CuponService } from '../cupon/cupon.service';
 import { VersionCuponeraService } from '../version-cuponera/version-cuponera.service';
 import { NotificacionesService } from '../notificaciones/notificaciones.service';
 import { ClientesService } from '../clientes/clientes.service';
+import { PromotorService } from '../clientes/promotor.service';
 import { MailService } from '../mail/mail.service';
 import { ConfiguracionService } from '../configuracion/configuracion.service';
 import { Usuario } from '../usuarios/schema/usuario.schema';
+import { Types } from 'mongoose';
 
 @Injectable()
 export class SolicitudCuponeraService {
@@ -28,6 +30,7 @@ export class SolicitudCuponeraService {
     private readonly versionService: VersionCuponeraService,
     private readonly notificacionesService: NotificacionesService,
     private readonly clientesService: ClientesService,
+    private readonly promotorService: PromotorService,
     private readonly mailService: MailService,
     private readonly configuracionService: ConfiguracionService,
     @InjectModel(Usuario.name)
@@ -45,11 +48,60 @@ export class SolicitudCuponeraService {
       comprobanteUrl = result.url;
     }
 
+    // ── Programa de promotores ──────────────────────────────────────────
+    // Si el cliente puso un código válido, calculamos snapshot y ajustamos
+    // el monto que el cliente debió transferir (= precio - descuento). El
+    // promotor cobra cuando esta solicitud llegue a APROBADO.
+    const codigoPromotorRaw: string | null | undefined = dto.codigoPromotor;
+    const precioOriginal = Number(dto.cuponeraPrecio ?? 0);
+    let promotorSnapshot: {
+      codigoPromotor: string | null;
+      promotorId: Types.ObjectId | null;
+      porcentajeDescuento: number;
+      porcentajeComision: number;
+      montoDescuento: number;
+      montoComision: number;
+      montoFinal: number;
+    } = {
+      codigoPromotor: null,
+      promotorId: null,
+      porcentajeDescuento: 0,
+      porcentajeComision: 0,
+      montoDescuento: 0,
+      montoComision: 0,
+      montoFinal: precioOriginal,
+    };
+    if (codigoPromotorRaw && precioOriginal > 0) {
+      try {
+        const calc = await this.promotorService.calcularDescuento(
+          codigoPromotorRaw,
+          precioOriginal,
+          dto.cliente?.toString?.() ?? String(dto.cliente ?? ''),
+        );
+        promotorSnapshot = {
+          codigoPromotor: String(codigoPromotorRaw).toUpperCase(),
+          promotorId: new Types.ObjectId(calc.promotorId),
+          porcentajeDescuento: calc.porcentajeDescuento,
+          porcentajeComision: calc.porcentajeComision,
+          montoDescuento: calc.montoDescuento,
+          montoComision: calc.montoComision,
+          montoFinal: calc.montoFinal,
+        };
+      } catch (e: any) {
+        this.logger.warn(
+          `Código promotor "${codigoPromotorRaw}" inválido: ${e?.message}`,
+        );
+        // Si el código no era válido pero el cliente igual transfirió, no
+        // bloqueamos la solicitud — el snapshot queda sin descuento.
+      }
+    }
+
     const solicitud = await this.model.create({
       ...dto,
       comprobanteBase64: undefined,
       comprobanteUrl,
       estado: EstadoSolicitud.PENDIENTE,
+      ...promotorSnapshot,
     });
 
     // Notificar a los admins (best-effort: no bloquea ni rompe la creación).
@@ -273,8 +325,20 @@ export class SolicitudCuponeraService {
       }
     }
 
-    // Si se aprueba, crear cupón automáticamente
+    // Si se aprueba, crear cupón automáticamente y acreditar comisión al
+    // promotor (si la solicitud trajo un código válido).
     if (estado === EstadoSolicitud.APROBADO) {
+      await this.promotorService.acreditarComision({
+        docId: doc._id as Types.ObjectId,
+        promotorId: (doc as any).promotorId,
+        montoComision: (doc as any).montoComision,
+        comisionAcreditada: (doc as any).comisionAcreditada,
+        marcarAcreditada: async () => {
+          await this.model.findByIdAndUpdate(doc._id, {
+            $set: { comisionAcreditada: true },
+          });
+        },
+      });
       try {
         const cupon = await this.crearCuponDesdeAprobacion(doc);
         return { solicitud: doc, cuponCreado: cupon };

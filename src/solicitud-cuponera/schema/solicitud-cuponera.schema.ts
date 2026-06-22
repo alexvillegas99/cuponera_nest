@@ -66,6 +66,25 @@ export class SolicitudCuponera extends Document {
   // Cupón de regalo generado al aprobar (para ver si el destinatario lo abrió).
   @Prop({ type: Types.ObjectId, ref: 'Cupon', default: null })
   cuponRegaloId: Types.ObjectId;
+
+  // ── Programa de promotores (snapshot al momento de la solicitud) ──
+  @Prop({ type: String, default: null, uppercase: true, trim: true })
+  codigoPromotor?: string | null;
+  @Prop({ type: Types.ObjectId, ref: 'Cliente', default: null, index: true })
+  promotorId?: Types.ObjectId | null;
+  @Prop({ type: Number, default: 0 })
+  porcentajeDescuento?: number;
+  @Prop({ type: Number, default: 0 })
+  porcentajeComision?: number;
+  @Prop({ type: Number, default: 0 })
+  montoDescuento?: number;
+  @Prop({ type: Number, default: 0 })
+  montoComision?: number;
+  /** Monto final pagado/transferido por el cliente tras aplicar el descuento. */
+  @Prop({ type: Number, default: 0 })
+  montoFinal?: number;
+  @Prop({ type: Boolean, default: false, index: true })
+  comisionAcreditada?: boolean;
 }
 
 export const SolicitudCuponeraSchema =

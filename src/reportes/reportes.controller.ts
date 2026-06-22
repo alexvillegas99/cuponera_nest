@@ -70,4 +70,10 @@ export class ReportesController {
   solicitudes(@Query('desde') desde?: string, @Query('hasta') hasta?: string) {
     return this.svc.embudoSolicitudes({ desde, hasta });
   }
+
+  @Get('promotores')
+  @Auth('reportes.ver')
+  promotores(@Query('desde') desde?: string, @Query('hasta') hasta?: string) {
+    return this.svc.reportePromotores({ desde, hasta });
+  }
 }

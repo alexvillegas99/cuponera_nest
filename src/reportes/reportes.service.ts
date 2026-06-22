@@ -745,4 +745,94 @@ export class ReportesService {
       tiempoPromedioHoras: tiempos[0]?.promedio || 0,
     };
   }
+
+  /**
+   * Reporte mensual del programa de promotores. Agrupa por promotor sus
+   * ventas (solicitudes APROBADAS con código en el rango), descuentos
+   * otorgados al comprador y comisión generada. Incluye el saldo actual
+   * del promotor (acumulado histórico) para que el admin sepa cuánto
+   * debe transferir.
+   */
+  async reportePromotores(r: RangoFechas) {
+    const { desde, hasta } = this.rango(r);
+
+    const agg = await this.solicitudModel.aggregate([
+      {
+        $match: {
+          createdAt: { $gte: desde, $lte: hasta },
+          promotorId: { $ne: null },
+          estado: 'APROBADO',
+        },
+      },
+      {
+        $group: {
+          _id: '$promotorId',
+          codigo: { $first: '$codigoPromotor' },
+          ventas: { $sum: 1 },
+          montoBruto: { $sum: { $ifNull: ['$cuponeraPrecio', 0] } },
+          totalDescuento: { $sum: { $ifNull: ['$montoDescuento', 0] } },
+          totalComision: { $sum: { $ifNull: ['$montoComision', 0] } },
+          comisionAcreditada: {
+            $sum: {
+              $cond: [
+                { $eq: ['$comisionAcreditada', true] },
+                { $ifNull: ['$montoComision', 0] },
+                0,
+              ],
+            },
+          },
+        },
+      },
+      { $sort: { totalComision: -1 } },
+    ]);
+
+    // Join con el cliente promotor para devolver nombre + saldo actual.
+    const promotorIds = agg.map((a: any) => a._id).filter(Boolean);
+    const clientes = await this.clienteModel
+      .find(
+        { _id: { $in: promotorIds } },
+        { nombres: 1, apellidos: 1, email: 1, codigoDescuento: 1, saldoPromotor: 1 },
+      )
+      .lean();
+    const byId: Record<string, any> = {};
+    for (const c of clientes) byId[String((c as any)._id)] = c;
+
+    const items = agg.map((a: any) => {
+      const c = byId[String(a._id)] ?? {};
+      return {
+        promotorId: String(a._id),
+        nombre: `${c.nombres ?? ''} ${c.apellidos ?? ''}`.trim() || (c.email ?? 'Promotor'),
+        email: c.email ?? null,
+        codigo: a.codigo ?? c.codigoDescuento ?? '—',
+        ventas: a.ventas,
+        montoBruto: +(Number(a.montoBruto) || 0).toFixed(2),
+        totalDescuento: +(Number(a.totalDescuento) || 0).toFixed(2),
+        totalComision: +(Number(a.totalComision) || 0).toFixed(2),
+        comisionAcreditada: +(Number(a.comisionAcreditada) || 0).toFixed(2),
+        saldoActual: +(Number(c.saldoPromotor) || 0).toFixed(2),
+      };
+    });
+
+    const totales = items.reduce(
+      (acc, it) => {
+        acc.ventas += it.ventas;
+        acc.montoBruto += it.montoBruto;
+        acc.totalDescuento += it.totalDescuento;
+        acc.totalComision += it.totalComision;
+        return acc;
+      },
+      { ventas: 0, montoBruto: 0, totalDescuento: 0, totalComision: 0 },
+    );
+
+    return {
+      rango: { desde: desde.toISOString(), hasta: hasta.toISOString() },
+      totales: {
+        ventas: totales.ventas,
+        montoBruto: +totales.montoBruto.toFixed(2),
+        totalDescuento: +totales.totalDescuento.toFixed(2),
+        totalComision: +totales.totalComision.toFixed(2),
+      },
+      promotores: items,
+    };
+  }
 }

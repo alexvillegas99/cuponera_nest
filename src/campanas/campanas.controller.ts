@@ -110,6 +110,23 @@ export class CampanasController {
     return this.svc.marcarTodasLeidas(user._id);
   }
 
+  /** El cliente elimina una notificación de SU bandeja. */
+  @Delete('cliente/entrega/:entregaId')
+  @Auth()
+  eliminarEntrega(
+    @GetUser() user: any,
+    @Param('entregaId') entregaId: string,
+  ) {
+    return this.svc.eliminarEntrega(user._id, entregaId);
+  }
+
+  /** El cliente vacía su bandeja completa. */
+  @Delete('cliente/entregas')
+  @Auth()
+  vaciarBandeja(@GetUser() user: any) {
+    return this.svc.eliminarTodasEntregas(user._id);
+  }
+
   // ── Preferencias ───────────────────────────────────────────────────
   @Get('cliente/prefs')
   @Auth()

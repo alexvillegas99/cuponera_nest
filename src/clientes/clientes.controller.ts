@@ -22,11 +22,74 @@ import {
 import { Auth } from 'src/auth/decorators/auth.decorator';
 import { GetUser } from 'src/auth/decorators/get-user.decorator';
 import { ClientesService } from './clientes.service';
+import { PromotorService } from './promotor.service';
 
 @ApiTags('Clientes')
 @Controller('clientes')
 export class ClientesController {
-  constructor(private readonly service: ClientesService) {}
+  constructor(
+    private readonly service: ClientesService,
+    private readonly promotorService: PromotorService,
+  ) {}
+
+  // ── Programa de promotores ───────────────────────────────────────────
+
+  /** El cliente comprador valida un código en el checkout (preview). */
+  @Post('promotor/validar-codigo')
+  @Auth()
+  async validarCodigoPromotor(
+    @GetUser() user: any,
+    @Body() body: { codigo: string; monto?: number },
+  ) {
+    if (!body?.codigo) throw new BadRequestException('Falta código');
+    if (body.monto && Number(body.monto) > 0) {
+      return this.promotorService.calcularDescuento(
+        body.codigo,
+        Number(body.monto),
+        user?._id?.toString(),
+      );
+    }
+    return this.promotorService.validarCodigo(
+      body.codigo,
+      user?._id?.toString(),
+    );
+  }
+
+  /** El propio promotor consulta sus stats (saldo, código, %). */
+  @Get('me/promotor/stats')
+  @Auth()
+  async miPromotorStats(@GetUser() user: any) {
+    return this.promotorService.statsPropias(String(user._id));
+  }
+
+  /** Defaults globales (% descuento / % comisión) para el panel admin. */
+  @Get('promotor/defaults')
+  @Auth()
+  async promotorDefaults() {
+    return this.promotorService.getDefaults();
+  }
+
+  /** Admin convierte a un cliente en promotor (o edita overrides). */
+  @Patch(':id/promotor/activar')
+  @Auth()
+  async activarPromotor(
+    @Param('id') clienteId: string,
+    @Body()
+    body: {
+      codigoDescuento: string;
+      porcentajeDescuento?: number | null;
+      porcentajeComision?: number | null;
+    },
+  ) {
+    return this.promotorService.convertirEnPromotor(clienteId, body);
+  }
+
+  /** Admin desactiva al promotor (libera el código). */
+  @Patch(':id/promotor/desactivar')
+  @Auth()
+  async desactivarPromotor(@Param('id') clienteId: string) {
+    return this.promotorService.desactivarPromotor(clienteId);
+  }
 
 
     @Get('admin')

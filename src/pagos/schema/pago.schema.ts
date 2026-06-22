@@ -57,6 +57,33 @@ export class Pago {
 
   @Prop({ default: '' })
   mensajeRegalo: string;
+
+  // ── Programa de promotores (snapshot al momento de la compra) ──
+  /** Código que digitó el comprador. Null si no aplicó código. */
+  @Prop({ type: String, default: null, uppercase: true, trim: true })
+  codigoPromotor?: string | null;
+
+  /** Cliente promotor referido por el código. */
+  @Prop({ type: Types.ObjectId, ref: 'Cliente', default: null, index: true })
+  promotorId?: Types.ObjectId | null;
+
+  @Prop({ type: Number, default: 0 })
+  porcentajeDescuento?: number;
+  @Prop({ type: Number, default: 0 })
+  porcentajeComision?: number;
+  @Prop({ type: Number, default: 0 })
+  montoDescuento?: number;
+  @Prop({ type: Number, default: 0 })
+  montoComision?: number;
+  /** Monto realmente pagado por el cliente con el descuento ya aplicado. */
+  @Prop({ type: Number, default: 0 })
+  montoFinal?: number;
+  /**
+   * Marca idempotente: cuando el pago llega a APROBADO la comisión se
+   * acredita una sola vez al saldoPromotor del referente.
+   */
+  @Prop({ type: Boolean, default: false, index: true })
+  comisionAcreditada?: boolean;
 }
 
 export const PagoSchema = SchemaFactory.createForClass(Pago);

@@ -69,6 +69,36 @@
     @Prop({ type: [String], default: [] })
     fcmTokens: string[];
 
+    // ── Programa de promotores ──
+    /**
+     * Si true, este cliente puede compartir su [codigoDescuento] para que
+     * otros clientes compren cuponeras con descuento y a él se le acumula
+     * comisión en [saldoPromotor]. Los porcentajes overrides son por
+     * promotor; si null, se usan los defaults globales en `configuracion`.
+     */
+    @Prop({ type: Boolean, default: false, index: true })
+    isPromotor?: boolean;
+
+    @Prop({
+      type: String,
+      default: null,
+      sparse: true,
+      unique: true,
+      uppercase: true,
+      trim: true,
+    })
+    codigoDescuento?: string | null;
+
+    @Prop({ type: Number, default: null })
+    porcentajeDescuento?: number | null;
+
+    @Prop({ type: Number, default: null })
+    porcentajeComision?: number | null;
+
+    /** Saldo acumulado de comisiones en USD (no centavos). */
+    @Prop({ type: Number, default: 0 })
+    saldoPromotor?: number;
+
     @Prop({ type: Boolean, default: false, index: true })
     deleted?: boolean;
 

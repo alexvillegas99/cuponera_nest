@@ -50,6 +50,18 @@ export class ConfiguracionService {
         descripcion:
           'Lista de correos (separados por coma) que reciben aviso de cada nueva solicitud de cuponera',
       },
+      {
+        clave: 'promotor_descuento_default',
+        valor: '20',
+        descripcion:
+          'Porcentaje de descuento que recibe el cliente al usar un código de promotor (default; cada promotor puede tener override).',
+      },
+      {
+        clave: 'promotor_comision_default',
+        valor: '20',
+        descripcion:
+          'Porcentaje de comisión que gana el promotor por cada venta hecha con su código (default; cada promotor puede tener override).',
+      },
     ];
 
     for (const d of defaults) {
@@ -85,5 +97,26 @@ export class ConfiguracionService {
     const result = await this.model.deleteOne({ clave });
     if (result.deletedCount === 0)
       throw new NotFoundException(`Configuración "${clave}" no encontrada`);
+  }
+
+  /**
+   * Helper: lee una clave numérica con default. No tira si no existe — útil
+   * para configuraciones opcionales tipo "% descuento default".
+   */
+  async getNumberOrDefault(clave: string, defaultValue: number): Promise<number> {
+    try {
+      const doc = await this.model.findOne({ clave }).lean();
+      if (!doc) return defaultValue;
+      const n = Number((doc as any).valor);
+      return Number.isFinite(n) ? n : defaultValue;
+    } catch {
+      return defaultValue;
+    }
+  }
+
+  /** Idempotente: setea la clave solo si no existe. Útil para seeds. */
+  async setIfMissing(clave: string, valor: string, descripcion?: string) {
+    const existe = await this.model.exists({ clave });
+    if (!existe) await this.upsert(clave, { valor, descripcion });
   }
 }
