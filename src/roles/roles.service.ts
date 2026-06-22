@@ -24,7 +24,37 @@ export class RolesService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
-   // await this.seed();
+    // El seed completo (this.seed()) sobreescribiría personalizaciones del
+    // panel — lo dejamos comentado a propósito. Pero sí garantizamos que
+    // los nuevos permisos del catálogo (p.ej. promotores.*) lleguen a los
+    // roles de sistema sin tocar el resto.
+    await this._sincronizarPermisosNuevos();
+  }
+
+  /**
+   * Agrega permisos faltantes a roles de sistema con $addToSet — nunca quita
+   * permisos. Pensado para roll-outs de nuevos módulos (promotores, etc.)
+   * sin perder personalizaciones que el admin haya hecho desde /roles.
+   */
+  private async _sincronizarPermisosNuevos() {
+    const cambios: Array<{ slug: string; permisos: string[] }> = [
+      // admin → TODO el catálogo
+      { slug: 'admin', permisos: TODOS_LOS_PERMISOS },
+      // marketing → ver el reporte de promotores
+      { slug: 'marketing', permisos: ['promotores.ver'] },
+    ];
+    for (const c of cambios) {
+      try {
+        await this.rolModel.updateOne(
+          { slug: c.slug },
+          { $addToSet: { permisos: { $each: c.permisos } } },
+        );
+      } catch (e: any) {
+        this.logger.warn(
+          `Sync permisos para rol "${c.slug}" falló: ${e?.message}`,
+        );
+      }
+    }
   }
 
   /**
@@ -83,6 +113,7 @@ export class RolesService implements OnModuleInit {
           'establecimientos.ver',
           'notificaciones.ver', 'notificaciones.enviar',
           'chat.ver', 'chat.responder',
+          'promotores.ver',
         ],
         esSistema: false,
         slug: 'marketing',

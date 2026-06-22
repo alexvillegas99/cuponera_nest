@@ -64,14 +64,14 @@ export class ClientesController {
 
   /** Defaults globales (% descuento / % comisión) para el panel admin. */
   @Get('promotor/defaults')
-  @Auth()
+  @Auth('promotores.ver')
   async promotorDefaults() {
     return this.promotorService.getDefaults();
   }
 
   /** Admin convierte a un cliente en promotor (o edita overrides). */
   @Patch(':id/promotor/activar')
-  @Auth()
+  @Auth('promotores.gestionar')
   async activarPromotor(
     @Param('id') clienteId: string,
     @Body()
@@ -86,7 +86,7 @@ export class ClientesController {
 
   /** Admin desactiva al promotor (libera el código). */
   @Patch(':id/promotor/desactivar')
-  @Auth()
+  @Auth('promotores.gestionar')
   async desactivarPromotor(@Param('id') clienteId: string) {
     return this.promotorService.desactivarPromotor(clienteId);
   }

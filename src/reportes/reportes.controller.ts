@@ -72,7 +72,7 @@ export class ReportesController {
   }
 
   @Get('promotores')
-  @Auth('reportes.ver')
+  @Auth('promotores.ver')
   promotores(@Query('desde') desde?: string, @Query('hasta') hasta?: string) {
     return this.svc.reportePromotores({ desde, hasta });
   }

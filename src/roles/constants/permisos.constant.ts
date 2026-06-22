@@ -189,6 +189,30 @@ export const PERMISOS_CATALOG: GrupoPermisos[] = [
     ],
   },
   {
+    modulo: 'promotores',
+    nombre: 'Promotores',
+    permisos: [
+      {
+        clave: 'promotores.ver',
+        nombre: 'Ver promotores y su reporte',
+        descripcion:
+          'Acceso al listado de promotores y al reporte mensual de ventas/comisiones por código.',
+      },
+      {
+        clave: 'promotores.gestionar',
+        nombre: 'Gestionar promotores',
+        descripcion:
+          'Activar/desactivar el rol de promotor en un cliente, asignar su código y configurar overrides de % descuento y comisión.',
+      },
+      {
+        clave: 'promotores.ajustar-saldo',
+        nombre: 'Ajustar saldo del promotor',
+        descripcion:
+          'Modificar manualmente el saldo acumulado del promotor (p. ej. al cancelar una venta o registrar un pago manual).',
+      },
+    ],
+  },
+  {
     modulo: 'roles',
     nombre: 'Roles y Permisos',
     permisos: [
