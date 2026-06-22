@@ -34,7 +34,7 @@ export class PromocionesFlashController {
   // ── Admin-local ────────────────────────────────────────────────────────────
 
   @Post()
-  @Auth()
+  @Auth('promociones-flash.gestionar')
   @ApiOperation({ summary: 'Crear promoción flash (máx 5 activas por local)' })
   crear(@GetUser() user: any, @Body() dto: CreatePromocionFlashDto) {
     this._assertRol(user, ROLES_LOCAL);
@@ -42,7 +42,7 @@ export class PromocionesFlashController {
   }
 
   @Get('mias')
-  @Auth()
+  @Auth('promociones-flash.gestionar')
   @ApiOperation({ summary: 'Listar las promociones flash de mi local' })
   mias(@GetUser() user: any, @Query('estado') estado?: string) {
     this._assertRol(user, ROLES_LOCAL);
@@ -50,7 +50,7 @@ export class PromocionesFlashController {
   }
 
   @Patch(':id')
-  @Auth()
+  @Auth('promociones-flash.gestionar')
   @ApiOperation({ summary: 'Actualizar / pausar una promoción flash' })
   actualizar(
     @GetUser() user: any,
@@ -62,7 +62,7 @@ export class PromocionesFlashController {
   }
 
   @Delete(':id')
-  @Auth()
+  @Auth('promociones-flash.gestionar')
   @ApiOperation({ summary: 'Eliminar una promoción flash' })
   eliminar(@GetUser() user: any, @Param('id') id: string) {
     this._assertRol(user, ROLES_LOCAL);

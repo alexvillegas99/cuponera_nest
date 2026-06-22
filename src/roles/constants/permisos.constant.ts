@@ -177,6 +177,18 @@ export const PERMISOS_CATALOG: GrupoPermisos[] = [
     ],
   },
   {
+    modulo: 'promociones-flash',
+    nombre: 'Promociones Flash',
+    permisos: [
+      {
+        clave: 'promociones-flash.gestionar',
+        nombre: 'Gestionar promociones flash',
+        descripcion:
+          'Permite al admin-local crear, editar, pausar y eliminar las promociones flash de su establecimiento.',
+      },
+    ],
+  },
+  {
     modulo: 'roles',
     nombre: 'Roles y Permisos',
     permisos: [

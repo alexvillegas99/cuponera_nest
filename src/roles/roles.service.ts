@@ -45,7 +45,13 @@ export class RolesService implements OnModuleInit {
 
     const permisosAdminLocal = TODOS_LOS_PERMISOS.filter((p) => {
       const modulo = p.split('.')[0];
-      return ['web', 'dashboard-local', 'usuarios-local', 'perfil-local'].includes(modulo);
+      return [
+        'web',
+        'dashboard-local',
+        'usuarios-local',
+        'perfil-local',
+        'promociones-flash',
+      ].includes(modulo);
     });
 
     const permisosStaff = TODOS_LOS_PERMISOS.filter((p) => {
