@@ -1,3 +1,4 @@
+import { GetUser } from 'src/auth/decorators';
 import { AuthUsuario } from 'src/auth/decorators/auth.decorator';
 import {
   Controller,
@@ -309,8 +310,13 @@ async getDetalle(@Param('id') id: string) {
   async abrirRegalo(
     @Param('cuponId') cuponId: string,
     @Body() body: { clienteId: string },
+    @GetUser() user: any,
   ) {
-    return this.cuponService.abrirRegalo(cuponId, body.clienteId);
+    // El destinatario es quien tiene la sesión (no el id que llegue en el body):
+    // así nadie puede abrir el regalo de otra persona.
+    const clienteId =
+      user?.kind === 'CLIENTE' ? String(user._id) : body?.clienteId;
+    return this.cuponService.abrirRegalo(cuponId, clienteId);
   }
 
 }

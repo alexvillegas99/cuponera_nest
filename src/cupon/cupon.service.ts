@@ -546,11 +546,12 @@ export class CuponService {
     ) {
       throw new BadRequestException('cuponId o clienteId inválido');
     }
+    // `cliente` puede estar guardado como texto o como ObjectId.
     const cupon = await this._cuponModel.findOne({
       _id: new Types.ObjectId(cuponId),
-      cliente: new Types.ObjectId(clienteId),
+      cliente: { $in: [clienteId, new Types.ObjectId(clienteId)] },
       esRegalo: true,
-    });
+    } as any);
     if (!cupon) throw new NotFoundException('Regalo no encontrado');
     const yaEstabaAbierto = cupon.regaloAbierto === true;
     if (!yaEstabaAbierto) {
