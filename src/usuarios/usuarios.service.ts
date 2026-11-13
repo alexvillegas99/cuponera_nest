@@ -1,4 +1,5 @@
 import { ResetGrantService } from 'src/otp/reset-grant.service';
+import { horarioVisible } from '../common/horario-visible';
 import {
   Injectable,
   NotFoundException,
@@ -691,6 +692,7 @@ export class UsuariosService {
             : (d.nombre ?? ''),
         id: negocioIdStr,
         rating: ratingFromRoot,
+        scheduleLabel: horarioVisible(detalleOriginal),
       };
 
       return {
@@ -785,6 +787,7 @@ export class UsuariosService {
           : (d.nombre ?? ''),
       id: negocioIdStr,
       rating: ratingFromRoot,
+      scheduleLabel: horarioVisible(dp),
     };
     return {
       _id: negocioIdStr,
@@ -1026,7 +1029,7 @@ export class UsuariosService {
           isTwoForOne: u.detallePromocion.isTwoForOne,
           tags: u.detallePromocion.tags ?? [],
           rating: u.detallePromocion.rating,
-          scheduleLabel: u.detallePromocion.scheduleLabel,
+          scheduleLabel: horarioVisible(u.detallePromocion),
           distanceLabel: u.detallePromocion.distanceLabel,
           startDate: u.detallePromocion.startDate
             ? new Date(u.detallePromocion.startDate).toISOString()

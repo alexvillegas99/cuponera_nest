@@ -1,3 +1,4 @@
+import { horarioVisible } from '../common/horario-visible';
 import {
   BadRequestException,
   ConflictException,
@@ -700,6 +701,10 @@ export class CuponService {
             'detallePromocion.rating': 1,
             'detallePromocion.scheduleLabel': 1,
             'detallePromocion.placeName': 1,
+            'detallePromocion.aplicaTodosLosDias': 1,
+            'detallePromocion.diasAplicables': 1,
+            'detallePromocion.horarioPorDia': 1,
+            'detallePromocion.fechasExcluidas': 1,
           },
         )
         .populate({
@@ -736,7 +741,7 @@ export class CuponService {
           title: u.detallePromocion?.title,
           logoUrl: u.detallePromocion?.logoUrl,
           rating: u.detallePromocion?.rating,
-          scheduleLabel: u.detallePromocion?.scheduleLabel,
+          scheduleLabel: horarioVisible(u.detallePromocion),
         });
       }
 
@@ -795,7 +800,7 @@ export class CuponService {
           title: c.detallePromocion?.title,
           logoUrl: c.detallePromocion?.logoUrl,
           rating: c.detallePromocion?.rating,
-          scheduleLabel: c.detallePromocion?.scheduleLabel,
+          scheduleLabel: horarioVisible(c.detallePromocion),
         }));
 
       // Paso 6: Respuesta
