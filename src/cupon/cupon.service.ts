@@ -892,18 +892,21 @@ export class CuponService {
       historicos.map((h: any) => h.cupon.toString()),
     );
 
-    // 4) Filtrar cupones cuya versión comparte ciudad con el local y no fueron escaneados ahí
+    // 4) Filtrar cupones cuya versión comparte ciudad con el local y no fueron
+    //    escaneados ahí. Ciudades de la versión EXPANDIENDO provincias.
+    const ciudadesPorVersion = new Map<string, Set<string>>();
+    for (const cupon of cupones as any[]) {
+      const vid = cupon.version?._id ? String(cupon.version._id) : null;
+      if (vid && !ciudadesPorVersion.has(vid)) {
+        const ids = await this._versionModel.ciudadIdsDeVersion(vid);
+        ciudadesPorVersion.set(vid, new Set(ids.map((i) => String(i))));
+      }
+    }
     return cupones.filter((cupon: any) => {
       if (!cupon.version) return false;
-
-      // Ya escaneado en este local
       if (cuponesYaEscaneados.has(cupon._id.toString())) return false;
-
-      // Empate por ciudades
-      const ciudadesVersion = (cupon.version.ciudadesDisponibles || []).map(
-        (c: any) => c.toString(),
-      );
-      return ciudadesVersion.some((c: string) => ciudadesLocal.includes(c));
+      const set = ciudadesPorVersion.get(String(cupon.version._id));
+      return !!set && ciudadesLocal.some((c: string) => set.has(c));
     });
   }
 
@@ -923,8 +926,12 @@ export class CuponService {
     if (!cupones.length) return [];
 
     const cuponCities = new Set<string>();
+    const versiones = new Set<string>();
     for (const c of cupones as any[]) {
-      for (const cid of c.version?.ciudadesDisponibles ?? []) {
+      if (c.version?._id) versiones.add(String(c.version._id));
+    }
+    for (const vid of versiones) {
+      for (const cid of await this._versionModel.ciudadIdsDeVersion(vid)) {
         cuponCities.add(String(cid));
       }
     }

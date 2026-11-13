@@ -35,6 +35,7 @@ export interface PromoPrincipalDto {
   isFlash?: boolean;
   address?: string;
   aplicaTodosLosDias?: boolean;
+  diasAplicables?: string[];
   fechasExcluidas?: string[];
 }
 

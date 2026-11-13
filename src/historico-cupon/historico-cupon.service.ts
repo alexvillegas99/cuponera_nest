@@ -36,6 +36,40 @@ export class HistoricoCuponService {
 
   // ===================== Helpers =====================
 
+  /**
+   * ¿La promoción del local aplica HOY (día de Ecuador)? Revisa días de la
+   * semana y fechas excluidas (feriados). Devuelve el motivo si no aplica.
+   */
+  private async motivoNoAplicaHoy(usuarioId: string): Promise<string | null> {
+    const local: any = await this._usuariosModel.getAdminLocalRaw(usuarioId);
+    const dp = local?.detallePromocion;
+    if (!dp) return null;
+    const ahora = new Date();
+    const fmt = (o: Intl.DateTimeFormatOptions) =>
+      new Intl.DateTimeFormat('es-EC', { timeZone: 'America/Guayaquil', ...o }).format(ahora);
+    const dia = fmt({ weekday: 'long' })
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .toLowerCase();
+    const ymd = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Guayaquil', year: 'numeric', month: '2-digit', day: '2-digit',
+    }).format(ahora);
+    const excluida = (dp.fechasExcluidas ?? []).some(
+      (f: any) => new Date(f).toISOString().slice(0, 10) === ymd,
+    );
+    if (excluida) return 'La promoción de este local no aplica hoy (fecha excluida).';
+    if (dp.aplicaTodosLosDias === false) {
+      const dias: string[] = (dp.diasAplicables ?? []).map((d: string) =>
+        String(d).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(),
+      );
+      if (dias.length && !dias.includes(dia)) {
+        return 'La promoción de este local no aplica hoy.';
+      }
+    }
+    return null;
+  }
+
+
   /** Normaliza cualquier id u objeto a string */
   private asIdString(v: any): string | null {
     if (!v) return null;
@@ -67,8 +101,10 @@ export class HistoricoCuponService {
     }
 
     // 2) Versión RAW (ObjectIds)
-    const versionRaw = await this.versionService.findByIdRaw(versionId);
-    const versionCitiesSet = this.toIdSet(versionRaw?.ciudadesDisponibles ?? []);
+    // Ciudades sueltas + todas las ciudades de las provincias de la versión.
+    const versionCitiesSet = this.toIdSet(
+      await this.versionService.ciudadIdsDeVersion(versionId),
+    );
     if (!versionCitiesSet.size) {
       throw new BadRequestException(
         'La versión de cuponera no tiene ciudades disponibles configuradas',
@@ -153,6 +189,10 @@ export class HistoricoCuponService {
       );
     }
     await this.assertMismaCiudad(dto.usuario, versionId);
+
+    // 3b) La promoción debe aplicar hoy (día de la semana / feriados).
+    const motivoDia = await this.motivoNoAplicaHoy(dto.usuario);
+    if (motivoDia) throw new BadRequestException(motivoDia);
 
     // 4) Límite de escaneos
   /*   const version = await this.versionService.findByIdRaw(versionId);
@@ -401,6 +441,8 @@ export class HistoricoCuponService {
       return { ...cupon, valido: false, message: 'Cupón ya registrado' };
     }
 
+    const motivoDia = await this.motivoNoAplicaHoy(usuarioId);
+    if (motivoDia) return { ...cupon, valido: false, message: motivoDia };
     return { ...cupon, valido: true, message: 'Cupón válido para registro' };
   }
 

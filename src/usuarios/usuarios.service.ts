@@ -1037,6 +1037,7 @@ export class UsuariosService {
           isFlash: u.detallePromocion.isFlash,
           address: u.detallePromocion.address,
           aplicaTodosLosDias: u.detallePromocion.aplicaTodosLosDias,
+          diasAplicables: u.detallePromocion.diasAplicables ?? [],
           fechasExcluidas: Array.isArray(u.detallePromocion.fechasExcluidas)
             ? u.detallePromocion.fechasExcluidas.map((d: any) =>
                 new Date(d).toISOString(),
