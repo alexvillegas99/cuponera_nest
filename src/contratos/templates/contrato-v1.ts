@@ -20,10 +20,12 @@ export interface DatosContratoV1 {
   // Fecha en formato literal: "12 días del mes de junio del año 2026"
   fechaLiteral: string;
 
-  // Constantes (parametrizables a futuro)
+  // Constantes de CLUB ENJOY (vienen de configuración)
   cedulaContratado?: string; // 1802497279
   rucContratado?: string;
-  multaIncumplimiento?: string; // "500,oo USD"
+  representanteEnjoy?: string; // Nombre completo del representante de Enjoy
+  estadoCivilEnjoy?: string;
+  multaIncumplimiento?: string; // "500"
   diasNotificacion?: string; // "15"
 }
 
@@ -38,10 +40,12 @@ export type ContratoBloque =
   | { tipo: 'lista'; items: string[] };
 
 export function renderContratoV1(d: DatosContratoV1): ContratoRenderizado {
-  const cedulaContratado = d.cedulaContratado ?? '1802497279';
-  const rucContratado = d.rucContratado ?? 'XXXXXXXXXX';
-  const multa = d.multaIncumplimiento ?? '500,oo';
-  const diasNotif = d.diasNotificacion ?? '15';
+  const cedulaContratado = d.cedulaContratado || '1802497279';
+  const rucContratado = d.rucContratado || '__________';
+  const representanteEnjoy = d.representanteEnjoy || 'JHON __________';
+  const estadoCivilEnjoy = d.estadoCivilEnjoy || '__________';
+  const multa = d.multaIncumplimiento || '500';
+  const diasNotif = d.diasNotificacion || '15';
 
   const nombreLocal = d.nombreLocal || '__________';
   const ruc = d.rucLocal || '__________';
@@ -56,7 +60,7 @@ export function renderContratoV1(d: DatosContratoV1): ContratoRenderizado {
     bloques: [
       {
         tipo: 'parrafo',
-        texto: `En la ciudad de Ambato, ${d.fechaLiteral}, comparecen, por una parte, CLUB ENJOY, con número de RUC ${rucContratado}, legalmente representada por el señor JHON XXXXX, portador de la cédula de ciudadanía N° ${cedulaContratado}, mayor de edad, quien comparece en calidad de CONTRATADO; y, por otra parte, el señor ${repre}, representante legal de la empresa / restaurante / local comercial de nombre ${nombreLocal}, portador de la cédula de ciudadanía N° ${cedRepre}, mayor de edad, de estado civil ${ecRepre}, quien comparece en calidad de CONTRATANTE.`,
+        texto: `En la ciudad de Ambato, ${d.fechaLiteral}, comparecen, por una parte, CLUB ENJOY, con número de RUC ${rucContratado}, legalmente representada por el señor ${representanteEnjoy}, portador de la cédula de ciudadanía N° ${cedulaContratado}, mayor de edad, de estado civil ${estadoCivilEnjoy}, quien comparece en calidad de CONTRATADO; y, por otra parte, el señor ${repre}, representante legal de la empresa / restaurante / local comercial de nombre ${nombreLocal}, portador de la cédula de ciudadanía N° ${cedRepre}, mayor de edad, de estado civil ${ecRepre}, quien comparece en calidad de CONTRATANTE.`,
       },
       {
         tipo: 'parrafo',
@@ -128,7 +132,12 @@ export function renderContratoV1(d: DatosContratoV1): ContratoRenderizado {
       { tipo: 'titulo', texto: 'CLÁUSULA QUINTA: EXCLUSIVIDAD' },
       {
         tipo: 'parrafo',
-        texto: `CLUB ENJOY y el local comercial denominado ${nombreLocal} acuerdan que el local comercial se compromete a, bajo ninguna circunstancia, trabajar con otro aplicativo móvil con el cual ya haya tenido contacto anteriormente, y, mucho menos que ofrezca las mismas promociones de CLUB ENJOY, todo esto posterior a la suscripción de este instrumento.`,
+        texto: `CLUB ENJOY y el local comercial denominado ${nombreLocal} acuerdan que el local comercial se compromete a no trabajar con otro aplicativo móvil que ofrezca las mismas promociones que CLUB ENJOY, esto es, aplicativos móviles que ofrezcan cuponeras de descuentos 2x1 o descuentos económicos en los productos o servicios brindados por el local comercial, esto será a partir de la firma del presente instrumento.`,
+      },
+      {
+        tipo: 'parrafo',
+        texto:
+          'Es oportuno aclarar que no se tomarán en cuenta las plataformas con las que ya trabajan con antelación, plataformas móviles, empresas de delivery o similares.',
       },
 
       { tipo: 'titulo', texto: 'CLÁUSULA SEXTA: CONFIDENCIALIDAD' },

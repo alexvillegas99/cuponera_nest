@@ -379,12 +379,28 @@ export class UsuariosService {
 
     // Los establecimientos/usuarios SIEMPRE se crean activos (forzado).
     dto.estado = true;
+
+    // Validación estricta de identificación: Mongoose con `required: true`
+    // acepta string vacío como válido, así que rechazamos acá para evitar
+    // crear registros sin CI/RUC y que después el formulario aparezca vacío
+    // al editar.
+    const idDoc = (dto.identificacion ?? '').toString().trim();
+    if (!idDoc) {
+      throw new BadRequestException(
+        'La identificación (CI o RUC) es obligatoria.',
+      );
+    }
+    if (!/^\d{10}(\d{3})?$/.test(idDoc)) {
+      throw new BadRequestException(
+        'La identificación debe ser CI (10 dígitos) o RUC (13 dígitos).',
+      );
+    }
+    dto.identificacion = idDoc;
+
     let claveSinEncriptar;
     // Clave por defecto = cédula/RUC del establecimiento.
-    // Si no viene identificación, caemos a una clave aleatoria de respaldo.
     if (!dto.clave) {
-      const idDoc = (dto.identificacion ?? '').toString().trim();
-      dto.clave = idDoc.length >= 6 ? idDoc : this.strongPassword(12);
+      dto.clave = idDoc;
       claveSinEncriptar = dto.clave;
     }
 

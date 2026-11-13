@@ -97,12 +97,14 @@ export class ClientesController {
   async findAdmin(
     @Query('q') q?: string,
     @Query('estado') estado?: string,
+    @Query('isPromotor') isPromotor?: string,
     @Query('page') page = '1',
     @Query('limit') limit = '10',
   ) {
     return this.service.findAdmin({
       q,
       estado,
+      isPromotor,
       page: Number(page),
       limit: Number(limit),
     });

@@ -73,7 +73,21 @@ export class ReportesController {
 
   @Get('promotores')
   @Auth('promotores.ver')
-  promotores(@Query('desde') desde?: string, @Query('hasta') hasta?: string) {
-    return this.svc.reportePromotores({ desde, hasta });
+  promotores(
+    @Query('desde') desde?: string,
+    @Query('hasta') hasta?: string,
+    @Query('estado') estado?: 'APROBADO' | 'PENDIENTE' | 'TODAS',
+  ) {
+    return this.svc.reportePromotores({ desde, hasta }, estado || 'APROBADO');
+  }
+
+  @Get('ventas-cuponeras')
+  @Auth('reportes.ver')
+  ventasCuponeras(
+    @Query('desde') desde?: string,
+    @Query('hasta') hasta?: string,
+    @Query('granularidad') g?: 'dia' | 'semana' | 'mes',
+  ) {
+    return this.svc.ventasCuponeras({ desde, hasta }, g || 'mes');
   }
 }

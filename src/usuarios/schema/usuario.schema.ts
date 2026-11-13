@@ -241,9 +241,45 @@ export class Usuario {
   @Prop({ type: String, default: null })
   cedulaUrl?: string | null;
 
+  /** Selfie del representante capturado al firmar (con prueba de vida). */
+  @Prop({ type: String, default: null })
+  selfieUrl?: string | null;
+
   /** Versión del template usado, p.ej. "v1". */
   @Prop({ type: String, default: null })
   contratoVersion?: string | null;
+
+  // ── Evidencia de firma electrónica (auditoría, persistida en base) ──
+  /** OTP de 6 dígitos usado para firmar (texto plano, para auditoría). */
+  @Prop({ type: String, default: null })
+  contratoOtp?: string | null;
+
+  /** SHA-256 del OTP usado para firmar. */
+  @Prop({ type: String, default: null })
+  contratoOtpHash?: string | null;
+
+  /** Hash SHA-256 de toda la evidencia de firma (el que va en el QR). */
+  @Prop({ type: String, default: null })
+  contratoHashEvidencia?: string | null;
+
+  /** IP desde la que se SOLICITÓ el OTP. */
+  @Prop({ type: String, default: null })
+  contratoIpSolicitudOtp?: string | null;
+
+  /** IP desde la que se VERIFICÓ el OTP y se firmó el contrato. */
+  @Prop({ type: String, default: null })
+  contratoIpVerificacion?: string | null;
+
+  /** Momento en que se solicitó el OTP que terminó firmando. */
+  @Prop({ type: Date, default: null })
+  contratoOtpSolicitadoEn?: Date | null;
+
+  /**
+   * Cuántas veces el admin-local pulsó "Omitir por ahora" en el flujo de
+   * firma. Tope duro definido en ContratosService.MAX_OMISIONES.
+   */
+  @Prop({ type: Number, default: 0 })
+  contratoOmisiones?: number;
 
   /** Datos adicionales del local capturados en el flujo de aceptación. */
   @Prop({ type: String, default: null })

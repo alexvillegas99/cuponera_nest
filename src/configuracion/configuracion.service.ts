@@ -62,6 +62,42 @@ export class ConfiguracionService {
         descripcion:
           'Porcentaje de comisión que gana el promotor por cada venta hecha con su código (default; cada promotor puede tener override).',
       },
+      // ── Constantes del contrato CLUB ENJOY (editables desde panel admin) ──
+      // No usar string vacío para `valor` — el schema lo rechaza con required.
+      // Dejamos un placeholder visible que el admin reemplaza.
+      {
+        clave: 'contrato_enjoy_ruc',
+        valor: 'PENDIENTE',
+        descripcion: 'RUC de CLUB ENJOY (aparece en el contrato).',
+      },
+      {
+        clave: 'contrato_enjoy_representante',
+        valor: 'JHON',
+        descripcion:
+          'Nombre completo del representante legal de CLUB ENJOY (aparece en el contrato).',
+      },
+      {
+        clave: 'contrato_enjoy_cedula_representante',
+        valor: '1802497279',
+        descripcion: 'Cédula del representante legal de CLUB ENJOY.',
+      },
+      {
+        clave: 'contrato_enjoy_estado_civil_representante',
+        valor: 'soltero',
+        descripcion: 'Estado civil del representante legal de CLUB ENJOY.',
+      },
+      {
+        clave: 'contrato_dias_notificacion_cambios',
+        valor: '15',
+        descripcion:
+          'Días de anticipación que el local debe avisar cambios (cláusula 3.f).',
+      },
+      {
+        clave: 'contrato_multa_incumplimiento',
+        valor: '500',
+        descripcion:
+          'Multa en USD por incumplimiento del contrato (cláusula 12).',
+      },
     ];
 
     for (const d of defaults) {

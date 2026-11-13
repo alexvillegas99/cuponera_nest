@@ -753,15 +753,157 @@ export class ReportesService {
    * del promotor (acumulado histórico) para que el admin sepa cuánto
    * debe transferir.
    */
-  async reportePromotores(r: RangoFechas) {
+  /**
+   * Ventas de cuponeras (módulo SolicitudCuponera, estado APROBADO).
+   * Incluye desglose con descuentos/comisiones cuando se usó código promotor;
+   * para solicitudes sin código los descuentos/comisiones son 0 y el neto = bruto.
+   *
+   * @param granularidad agrupación temporal de la serie: 'dia' | 'semana' | 'mes'.
+   */
+  async ventasCuponeras(
+    r: RangoFechas,
+    granularidad: 'dia' | 'semana' | 'mes' = 'mes',
+  ) {
     const { desde, hasta } = this.rango(r);
+    const match = {
+      createdAt: { $gte: desde, $lte: hasta },
+      estado: 'APROBADO',
+    };
+
+    // `cuponeraPrecio` está como string en el schema; lo convertimos a double.
+    const precioNumExpr = {
+      $convert: {
+        input: { $ifNull: ['$cuponeraPrecio', '0'] },
+        to: 'double',
+        onError: 0,
+        onNull: 0,
+      },
+    };
+
+    // Totales globales
+    const totalAgg = await this.solicitudModel.aggregate([
+      { $match: match },
+      {
+        $group: {
+          _id: null,
+          ventas: { $sum: 1 },
+          ventasConPromotor: {
+            $sum: { $cond: [{ $ifNull: ['$codigoPromotor', false] }, 1, 0] },
+          },
+          montoBruto: { $sum: precioNumExpr },
+          totalDescuento: { $sum: { $ifNull: ['$montoDescuento', 0] } },
+          totalComision: { $sum: { $ifNull: ['$montoComision', 0] } },
+        },
+      },
+    ]);
+    const total = totalAgg[0] || {
+      ventas: 0,
+      ventasConPromotor: 0,
+      montoBruto: 0,
+      totalDescuento: 0,
+      totalComision: 0,
+    };
+    const neto =
+      (total.montoBruto || 0) -
+      (total.totalDescuento || 0) -
+      (total.totalComision || 0);
+
+    // Serie temporal
+    const fmt =
+      granularidad === 'mes'
+        ? '%Y-%m'
+        : granularidad === 'semana'
+          ? '%G-W%V'
+          : '%Y-%m-%d';
+    const serie = await this.solicitudModel.aggregate([
+      { $match: match },
+      {
+        $group: {
+          _id: { $dateToString: { format: fmt, date: '$createdAt' } },
+          ventas: { $sum: 1 },
+          montoBruto: { $sum: precioNumExpr },
+          totalDescuento: { $sum: { $ifNull: ['$montoDescuento', 0] } },
+          totalComision: { $sum: { $ifNull: ['$montoComision', 0] } },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]);
+
+    // Por cuponera (qué cuponera se vendió más)
+    const porCuponera = await this.solicitudModel.aggregate([
+      { $match: match },
+      {
+        $group: {
+          _id: '$cuponeraNombre',
+          ventas: { $sum: 1 },
+          montoBruto: { $sum: precioNumExpr },
+          totalDescuento: { $sum: { $ifNull: ['$montoDescuento', 0] } },
+          totalComision: { $sum: { $ifNull: ['$montoComision', 0] } },
+        },
+      },
+      { $sort: { ventas: -1 } },
+    ]);
+
+    const fix = (n: number) => +(Number(n) || 0).toFixed(2);
+
+    return {
+      rango: { desde: desde.toISOString(), hasta: hasta.toISOString() },
+      granularidad,
+      totales: {
+        ventas: total.ventas || 0,
+        ventasConPromotor: total.ventasConPromotor || 0,
+        ventasSinPromotor: (total.ventas || 0) - (total.ventasConPromotor || 0),
+        montoBruto: fix(total.montoBruto),
+        totalDescuento: fix(total.totalDescuento),
+        totalComision: fix(total.totalComision),
+        neto: fix(neto),
+        ticketPromedio:
+          total.ventas > 0 ? fix(neto / total.ventas) : 0,
+      },
+      serie: serie.map((s: any) => {
+        const n =
+          (s.montoBruto || 0) - (s.totalDescuento || 0) - (s.totalComision || 0);
+        return {
+          periodo: s._id,
+          ventas: s.ventas,
+          montoBruto: fix(s.montoBruto),
+          totalDescuento: fix(s.totalDescuento),
+          totalComision: fix(s.totalComision),
+          neto: fix(n),
+        };
+      }),
+      porCuponera: porCuponera.map((c: any) => {
+        const n =
+          (c.montoBruto || 0) - (c.totalDescuento || 0) - (c.totalComision || 0);
+        return {
+          nombre: c._id || '—',
+          ventas: c.ventas,
+          montoBruto: fix(c.montoBruto),
+          totalDescuento: fix(c.totalDescuento),
+          totalComision: fix(c.totalComision),
+          neto: fix(n),
+        };
+      }),
+    };
+  }
+
+  async reportePromotores(
+    r: RangoFechas,
+    estado: 'APROBADO' | 'PENDIENTE' | 'TODAS' = 'APROBADO',
+  ) {
+    const { desde, hasta } = this.rango(r);
+
+    const matchEstado: any =
+      estado === 'TODAS'
+        ? { $in: ['APROBADO', 'PENDIENTE'] }
+        : estado;
 
     const agg = await this.solicitudModel.aggregate([
       {
         $match: {
           createdAt: { $gte: desde, $lte: hasta },
           promotorId: { $ne: null },
-          estado: 'APROBADO',
+          estado: matchEstado,
         },
       },
       {

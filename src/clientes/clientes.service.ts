@@ -244,17 +244,26 @@ export class ClientesService implements OnModuleInit {
   async findAdmin(filters: {
     q?: string;
     estado?: string;
+    isPromotor?: string;
     page: number;
     limit: number;
   }) {
 
-    const { q, estado, page, limit } = filters;
+    const { q, estado, isPromotor, page, limit } = filters;
 
     const query: any = {};
 
     // 🔎 Filtro estado
     if (estado !== undefined && estado !== '') {
       query.estado = estado === 'true';
+    }
+
+    // 🔎 Filtro promotor — 'true' solo promotores activos; 'false' incluye
+    // los que no tienen el campo todavía (docs viejos), no solo los false explícitos.
+    if (isPromotor === 'true') {
+      query.isPromotor = true;
+    } else if (isPromotor === 'false') {
+      query.isPromotor = { $ne: true };
     }
 
     // 🔎 Búsqueda global
@@ -266,6 +275,7 @@ export class ClientesService implements OnModuleInit {
         { apellidos: regex },
         { email: regex },
         { identificacion: regex },
+        { codigoDescuento: regex },
       ];
     }
 

@@ -79,11 +79,17 @@
     @Prop({ type: Boolean, default: false, index: true })
     isPromotor?: boolean;
 
+    /**
+     * Único cuando NO es null. Mongoose `sparse: true` no alcanza porque
+     * `default: null` deja el campo presente con valor `null` → al insertar
+     * 2+ clientes sin código de promotor, el índice los considera "duplicados
+     * null" y rompe el registro (E11000). Usamos un partialFilterExpression
+     * que excluye los null del índice — así puede haber muchos null y solo
+     * los códigos reales (string) son únicos.
+     */
     @Prop({
       type: String,
       default: null,
-      sparse: true,
-      unique: true,
       uppercase: true,
       trim: true,
     })
@@ -146,6 +152,18 @@
 
   // Reafirma índices únicos (útil si venías sin "unique" antes)
   ClienteSchema.index({ estado: 1, apellidos: 1 });
+
+  // Índice parcial sobre `codigoDescuento`: único pero solo entre clientes
+  // que tienen un código (string). Excluye los `null` para que muchos
+  // clientes puedan registrarse sin ser promotores. Reemplaza el sparse
+  // index que rompía con `default: null`.
+  ClienteSchema.index(
+    { codigoDescuento: 1 },
+    {
+      unique: true,
+      partialFilterExpression: { codigoDescuento: { $type: 'string' } },
+    },
+  );
 
   // (Opcional) si prefieres unicidad por tipo+identificación en vez de global:
   // ClienteSchema.index({ tipoIdentificacion: 1, identificacion: 1 }, { unique: true });
