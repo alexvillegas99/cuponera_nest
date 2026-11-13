@@ -1,3 +1,4 @@
+import { sanitizeResponseMiddleware } from './common/security/sanitize-response';
 // Polyfill: @nestjs/schedule usa el `crypto` global (no disponible en algunas
 // versiones de Node del servidor). Debe ir ANTES de cargar AppModule.
 import { webcrypto } from 'node:crypto';
@@ -33,6 +34,8 @@ async function bootstrap() {
     new ExpressAdapter(server),
   ); 
   //tamaño de json
+  // Nunca enviar hashes de contraseña ni códigos OTP al cliente.
+  app.use(sanitizeResponseMiddleware);
   app.use(json({ limit: '150mb' }));
   app.use(urlencoded({ extended: true, limit: '150mb' }));
   //Cors

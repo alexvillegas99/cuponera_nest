@@ -70,8 +70,10 @@ export class VersionCuponeraService {
       p.toString(),
     );
     if (provIds.length) {
+      // ObjectId explícito: con strings la consulta no coincide y las
+      // cuponeras definidas por provincia quedaban sin ciudades ni locales.
       const ciudades = await this.ciudadModel
-        .find({ provincia: { $in: provIds } })
+        .find({ provincia: { $in: provIds.map((id: string) => new Types.ObjectId(id)) } })
         .select('_id')
         .lean();
       for (const c of ciudades) set.add(c._id.toString());
@@ -260,5 +262,67 @@ export class VersionCuponeraService {
     if (ciudadIds.length === 0) return [];
 
     return this.usuariosService.findByCiudadesConPromo(ciudadIds);
+  }
+
+  /**
+   * Cuponeras activas para el selector de compra de la app: precio, cobertura
+   * (provincias y ciudades, expandidas para poder buscar), nº de locales y
+   * distancia al local afiliado más cercano. Ordenadas por cercanía si se
+   * envían lat/lng; si no, por nombre.
+   */
+  async disponibles(lat?: number, lng?: number) {
+    const versiones: any[] = await this.versionModel.find({ estado: true }).lean();
+    const tieneUbicacion = Number.isFinite(lat) && Number.isFinite(lng);
+    const rad = (x: number) => (x * Math.PI) / 180;
+    const km = (a: { lat: number; lng: number }) => {
+      const dLat = rad(a.lat - (lat as number));
+      const dLng = rad(a.lng - (lng as number));
+      const h = Math.sin(dLat / 2) ** 2 +
+        Math.cos(rad(lat as number)) * Math.cos(rad(a.lat)) * Math.sin(dLng / 2) ** 2;
+      return 6371 * 2 * Math.asin(Math.sqrt(h));
+    };
+
+    const out: any[] = [];
+    for (const v of versiones) {
+      const ciudadIds = await this.expandirCiudades(v);
+      const ciudades: any[] = ciudadIds.length
+        ? await this.ciudadModel
+            .find({ _id: { $in: ciudadIds } })
+            .select('nombre provincia')
+            .populate({ path: 'provincia', select: 'nombre' })
+            .lean()
+        : [];
+      const locales: any[] = ciudadIds.length
+        ? await this.usuariosService.findByCiudadesConPromo(ciudadIds)
+        : [];
+      let distanciaKm: number | null = null;
+      if (tieneUbicacion) {
+        for (const l of locales) {
+          const u = l?.ubicacion;
+          if (u && Number.isFinite(u.lat) && Number.isFinite(u.lng)) {
+            const d = km(u);
+            if (distanciaKm === null || d < distanciaKm) distanciaKm = d;
+          }
+        }
+      }
+      const provincias = [...new Set(ciudades.map((c) => c?.provincia?.nombre).filter(Boolean))];
+      out.push({
+        _id: v._id,
+        nombre: v.nombre,
+        descripcion: v.descripcion ?? '',
+        precio: v.precio,
+        provincias,
+        ciudades: ciudades.map((c) => c.nombre).sort((a, b) => a.localeCompare(b, 'es')),
+        totalLocales: locales.length,
+        distanciaKm: distanciaKm === null ? null : Math.round(distanciaKm * 10) / 10,
+      });
+    }
+    out.sort((a, b) => {
+      if (a.distanciaKm !== null && b.distanciaKm !== null) return a.distanciaKm - b.distanciaKm;
+      if (a.distanciaKm !== null) return -1;
+      if (b.distanciaKm !== null) return 1;
+      return String(a.nombre).localeCompare(String(b.nombre), 'es');
+    });
+    return out;
   }
 }

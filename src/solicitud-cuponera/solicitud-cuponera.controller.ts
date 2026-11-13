@@ -1,3 +1,4 @@
+import { AuthUsuario } from 'src/auth/decorators/auth.decorator';
 import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { Auth } from 'src/auth/decorators/auth.decorator';
@@ -20,7 +21,7 @@ export class SolicitudCuponeraController {
   }
 
   @Get()
-  @Auth()
+  @AuthUsuario('solicitudes.ver')
   @ApiOperation({ summary: 'Listar solicitudes (admin)' })
   findAll(
     @Query('estado') estado?: string,
@@ -41,14 +42,14 @@ export class SolicitudCuponeraController {
   }
 
   @Get(':id')
-  @Auth()
+  @AuthUsuario('solicitudes.ver')
   @ApiOperation({ summary: 'Detalle de solicitud' })
   findById(@Param('id') id: string) {
     return this.service.findById(id);
   }
 
   @Patch(':id/estado')
-  @Auth()
+  @AuthUsuario('solicitudes.aprobar')
   @ApiOperation({ summary: 'Aprobar o rechazar solicitud' })
   async updateEstado(
     @Param('id') id: string,

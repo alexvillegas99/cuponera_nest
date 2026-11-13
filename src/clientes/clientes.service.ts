@@ -1,3 +1,4 @@
+import { ResetGrantService } from 'src/otp/reset-grant.service';
 // src/clientes/clientes.service.ts
 import {
   BadRequestException,
@@ -42,6 +43,7 @@ import { NotificacionesService } from 'src/notificaciones/notificaciones.service
 @Injectable()
 export class ClientesService implements OnModuleInit {
   constructor(
+    private readonly resetGrant: ResetGrantService,
     @InjectModel(Cliente.name)
     private readonly clienteModel: Model<ClienteDocument>,
     @InjectModel(Cupon.name) private readonly cuponModel: Model<CuponDocument>,
@@ -578,6 +580,7 @@ export class ClientesService implements OnModuleInit {
 
     const u = await this.clienteModel.findOne({ email: email.toLowerCase() });
     if (!u) throw new NotFoundException('Cuenta no encontrada');
+    await this.resetGrant.consume(email);
 
     u.password = password; // se hashea en el pre-save del schema de Cliente
     await u.save();

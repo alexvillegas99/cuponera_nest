@@ -1,3 +1,4 @@
+import { AuthUsuario } from 'src/auth/decorators/auth.decorator';
 import {
   Body,
   Controller,
@@ -24,28 +25,28 @@ export class RolesController {
   ) {}
 
   @Get('permisos')
-  @Auth()
+  @AuthUsuario('roles.ver', 'usuarios.ver', 'usuarios.crear', 'usuarios.editar')
   @ApiOperation({ summary: 'Lista maestra de permisos agrupados por módulo' })
   getPermisos() {
     return this.rolesService.getPermisosCatalog();
   }
 
   @Get()
-  @Auth()
+  @AuthUsuario('roles.ver', 'usuarios.ver', 'usuarios.crear', 'usuarios.editar')
   @ApiOperation({ summary: 'Listar todos los roles' })
   findAll() {
     return this.rolesService.findAll();
   }
 
   @Get(':id')
-  @Auth()
+  @AuthUsuario('roles.ver', 'usuarios.ver', 'usuarios.crear', 'usuarios.editar')
   @ApiOperation({ summary: 'Obtener rol por ID' })
   findById(@Param('id') id: string) {
     return this.rolesService.findById(id);
   }
 
   @Post()
-  @Auth()
+  @AuthUsuario('roles.crear')
   @ApiOperation({ summary: 'Crear nuevo rol' })
   async create(@Body() dto: CreateRolDto, @GetUser() user: any) {
     const result = await this.rolesService.create(dto);
@@ -62,7 +63,7 @@ export class RolesController {
   }
 
   @Patch(':id')
-  @Auth()
+  @AuthUsuario('roles.editar')
   @ApiOperation({ summary: 'Actualizar rol' })
   async update(@Param('id') id: string, @Body() dto: UpdateRolDto, @GetUser() user: any) {
     const anterior = await this.rolesService.findById(id);
@@ -81,7 +82,7 @@ export class RolesController {
   }
 
   @Delete(':id')
-  @Auth()
+  @AuthUsuario('roles.eliminar')
   @ApiOperation({ summary: 'Eliminar rol (solo personalizados)' })
   async delete(@Param('id') id: string, @GetUser() user: any) {
     const rol = await this.rolesService.findById(id);

@@ -1,3 +1,4 @@
+import { AuthUsuario } from 'src/auth/decorators/auth.decorator';
 import {
   Controller,
   Post,
@@ -30,7 +31,7 @@ export class CuponController {
   constructor(private readonly cuponService: CuponService) {}
 
   @Post()
-  @Auth()
+  @AuthUsuario('cupones.crear')
   @ApiOperation({ summary: 'Crear un cupón individual' })
   @ApiResponse({ status: 201, description: 'Cupón creado exitosamente' })
   @ApiResponse({ status: 400, description: 'Datos inválidos' })
@@ -40,7 +41,7 @@ export class CuponController {
   }
 
 @Get()
-@Auth()
+@AuthUsuario('cupones.ver', 'dashboard.ver')
 @ApiOperation({ summary: 'Listar cupones paginados' })
 @ApiQuery({ name: 'page', required: false, example: 1 })
 @ApiQuery({ name: 'limit', required: false, example: 10 })
@@ -75,7 +76,7 @@ export class CuponController {
 
 
   @Delete(':id')
-  @Auth()
+  @AuthUsuario('cupones.eliminar')
   @ApiOperation({ summary: 'Eliminar cupón por ID' })
   @ApiResponse({ status: 200, description: 'Cupón eliminado exitosamente' })
   @ApiResponse({ status: 404, description: 'Cupón no encontrado' })
@@ -85,7 +86,7 @@ export class CuponController {
   }
 
   @Patch('activar')
-  @Auth()
+  @AuthUsuario('cupones.activar')
   @ApiOperation({ summary: 'Activar un cupón por versión y secuencial' })
   @ApiResponse({ status: 200, description: 'Cupón activado correctamente' })
   @ApiResponse({ status: 404, description: 'Cupón no encontrado' })
@@ -102,7 +103,7 @@ export class CuponController {
   }
 
   @Patch('desactivar')
-  @Auth()
+  @AuthUsuario('cupones.activar')
   @ApiOperation({ summary: 'Desactivar un cupón por versión y secuencial' })
   @ApiResponse({ status: 200, description: 'Cupón desactivado correctamente' })
   @ApiResponse({ status: 404, description: 'Cupón no encontrado' })
@@ -118,7 +119,7 @@ export class CuponController {
   }
 
   @Post('lote')
-  @Auth()
+  @AuthUsuario('cupones.lote')
   @ApiOperation({
     summary: 'Generar un lote de cupones para una versión específica',
     description:

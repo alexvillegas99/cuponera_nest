@@ -1,3 +1,4 @@
+import { RateLimit } from 'src/common/security/rate-limit.guard';
 import { Controller, Post, Body } from '@nestjs/common';
 
 import { ApiTags, ApiBody, ApiResponse } from '@nestjs/swagger';
@@ -10,6 +11,7 @@ export class OtpController {
   constructor(private readonly otpService: OtpService) {}
 
   @Post('generate')
+  @RateLimit(5, 15 * 60_000)
   @ApiBody({
     schema: {
       example: { email: 'user@example.com' },
@@ -17,11 +19,12 @@ export class OtpController {
   })
   @ApiResponse({ status: 201, description: 'OTP generado exitosamente' })
   async generate(@Body('email') email: string) {
-    const otpCode = await this.otpService.generateOtp(email);
-    return { message: 'OTP generado exitosamente', otp: otpCode };
+    await this.otpService.generateOtp(email);
+    return { message: 'OTP generado exitosamente' };
   }
 
   @Post('verify')
+  @RateLimit(10, 15 * 60_000)
   @ApiBody({
     schema: {
       example: { email: 'user@example.com', code: '123456' },

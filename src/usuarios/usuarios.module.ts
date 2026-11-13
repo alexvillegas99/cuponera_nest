@@ -1,3 +1,5 @@
+import { OtpModelName, OtpSchema } from 'src/otp/schema/otp.schema';
+import { ResetGrantService } from 'src/otp/reset-grant.service';
 import { Module } from '@nestjs/common';
 import { UsuariosService } from './usuarios.service';
 import { UsuariosController } from './usuarios.controller';
@@ -19,6 +21,7 @@ import {
   imports: [
     MongooseModule.forFeature([
       { name: Usuario.name, schema: UsuarioSchema },
+      { name: OtpModelName, schema: OtpSchema },
       { name: Comentario.name, schema: ComentarioSchema },
       { name: Ciudad.name, schema: CiudadSchema },
       { name: PromocionFlash.name, schema: PromocionFlashSchema },
@@ -26,7 +29,7 @@ import {
     S3Module
   ],
   controllers: [UsuariosController],
-  providers: [UsuariosService],
+  providers: [UsuariosService, ResetGrantService],
   exports: [UsuariosService],
 })
 export class UsuariosModule {}

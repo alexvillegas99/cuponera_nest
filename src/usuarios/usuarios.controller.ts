@@ -1,3 +1,6 @@
+import { RateLimit } from 'src/common/security/rate-limit.guard';
+import { ForbiddenException } from '@nestjs/common';
+import { AuthUsuario } from 'src/auth/decorators/auth.decorator';
 import {
   Body,
   Controller,
@@ -36,7 +39,7 @@ export class UsuariosController {
   ) {}
 
   @Post()
-  @Auth()
+  @AuthUsuario('usuarios.crear', 'establecimientos.crear', 'usuarios-local.ver')
   @ApiOperation({ summary: 'Crear usuario' })
   @ApiBody({
     description:
@@ -108,6 +111,22 @@ export class UsuariosController {
   async create(@Body() dto: any, @GetUser() user: any) {
     // Si el creador es vendedor, siempre usar su propio ID como usuarioCreacion
     const permisos: string[] = user?.permisos ?? [];
+
+    // Ámbito: solo quien tiene `usuarios.crear` elige libremente el rol.
+    if (!permisos.includes('usuarios.crear')) {
+      delete dto.rolRef;
+      if (permisos.includes('establecimientos.crear')) {
+        // Alta de establecimientos (vendedor): solo locales.
+        if (dto.rol && dto.rol !== 'admin-local') {
+          throw new ForbiddenException('Solo puedes crear establecimientos');
+        }
+        dto.rol = 'admin-local';
+      } else {
+        // Admin local creando a su personal: siempre staff de SU local.
+        dto.rol = 'staff';
+        dto.usuarioCreacion = user._id;
+      }
+    }
     const esVendedor =
       permisos.includes('establecimientos.editar') &&
       !permisos.includes('dashboard.ver');
@@ -228,7 +247,7 @@ export class UsuariosController {
   }
 
   @Get()
-  @Auth()
+  @AuthUsuario('usuarios.ver', 'establecimientos.ver')
   @ApiOperation({ summary: 'Listar usuarios' })
   @ApiResponse({
     status: 200,
@@ -255,7 +274,7 @@ export class UsuariosController {
   }
 
   @Get('admin-list')
-  @Auth()
+  @AuthUsuario('usuarios.ver')
   @ApiOperation({ summary: 'Listado administrativo de usuarios con filtros' })
   findAllAdmin(
     @Query('q') q?: string,
@@ -285,7 +304,7 @@ export class UsuariosController {
   }
 
   @Delete(':id')
-  @Auth()
+  @AuthUsuario('usuarios.eliminar')
   @ApiOperation({ summary: 'Eliminar usuario' })
   @ApiParam({ name: 'id', required: true })
   @ApiResponse({ status: 200, description: 'Eliminado' })
@@ -305,13 +324,14 @@ export class UsuariosController {
   }
 
   @Patch('reset')
+  @RateLimit(10, 15 * 60_000)
   async reset(@Body() dto: any) {
-    // Si tu reset NO requiere code, se ignora dto.code
+    // Requiere un OTP verificado (POST /otps/verify); lo comprueba el servicio.
     return this.usuariosService.resetPassword(dto.email, dto.password);
   }
 
   @Patch(':id')
-  @Auth()
+  @AuthUsuario()
   @ApiOperation({ summary: 'Actualizar usuario' })
   @ApiParam({ name: 'id', required: true })
   @ApiBody({
@@ -334,6 +354,21 @@ export class UsuariosController {
   })
   async update(@Param('id') id: string, @Body() dto: any, @GetUser() user: any) {
     const permisos: string[] = user?.permisos ?? [];
+
+    // Ámbito: tu propia cuenta, el personal que creaste, o un permiso de edición.
+    const puedeEditarOtros = ['usuarios.editar', 'establecimientos.editar', 'establecimientos.fotos']
+      .some((p) => permisos.includes(p));
+    if (!puedeEditarOtros && String(id) !== String(user._id)) {
+      const objetivo: any = await this.usuariosService.findByIdRaw(id);
+      if (!objetivo || String(objetivo.usuarioCreacion) !== String(user._id)) {
+        throw new ForbiddenException('No puedes editar este usuario');
+      }
+    }
+    // Cambiar roles es exclusivo de `usuarios.editar`.
+    if (!permisos.includes('usuarios.editar')) {
+      delete dto.rol;
+      delete dto.rolRef;
+    }
     const soloFotos =
       permisos.includes('establecimientos.fotos') &&
       !permisos.includes('establecimientos.editar') &&
@@ -421,15 +456,19 @@ export class UsuariosController {
   }
 
   @Get('users-local/:id')
-  @Auth()
+  @AuthUsuario()
   @ApiOperation({ summary: 'Listar usuarios creados por un responsable' })
   @ApiParam({ name: 'id', description: 'ID del responsable (usuarioCreacion)' })
-  findLocalById(@Param('id') id: string) {
+  findLocalById(@Param('id') id: string, @GetUser() user: any) {
+    const permisos: string[] = user?.permisos ?? [];
+    if (String(id) !== String(user._id) && !permisos.includes('usuarios.ver')) {
+      throw new ForbiddenException('Solo puedes ver el personal de tu local');
+    }
     return this.usuariosService.buscarTodosLosUsuariosPorResponsable(id);
   }
 
   @Post('users-local/:id')
-  @Auth()
+  @AuthUsuario('usuarios-local.ver', 'usuarios.crear')
   @ApiOperation({
     summary: 'Crear usuario asignando responsable (usuarioCreacion)',
   })
@@ -447,7 +486,15 @@ export class UsuariosController {
       },
     },
   })
-  createUserWithLocal(@Param('id') id: string, @Body() dto: CreateUsuarioDto) {
+  createUserWithLocal(
+    @Param('id') id: string,
+    @Body() dto: CreateUsuarioDto,
+    @GetUser() user: any,
+  ) {
+    const permisos: string[] = user?.permisos ?? [];
+    if (String(id) !== String(user._id) && !permisos.includes('usuarios.crear')) {
+      throw new ForbiddenException('Solo puedes crear personal para tu local');
+    }
     return this.usuariosService.createUserWithLocal(id, dto);
   }
 
@@ -464,6 +511,7 @@ export class UsuariosController {
   }
 
   @Patch('actualizar/contrasenia/recuperacion')
+  @RateLimit(10, 15 * 60_000)
   async actualizarContraseniaRecuperacion(@Body() dto: any) {
     return this.usuariosService.actualizarContraseniaRecuperacion(
       dto.email,

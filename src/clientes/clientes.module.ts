@@ -1,3 +1,5 @@
+import { OtpModelName, OtpSchema } from 'src/otp/schema/otp.schema';
+import { ResetGrantService } from 'src/otp/reset-grant.service';
 import { Module } from '@nestjs/common';
 import { ClientesService } from './clientes.service';
 import { ClientesController } from './clientes.controller';
@@ -20,6 +22,7 @@ import { PromotorService } from './promotor.service';
     NotificacionesModule,
     ConfiguracionModule,
     MongooseModule.forFeature([ { name: Cliente.name, schema: ClienteSchema },
+      { name: OtpModelName, schema: OtpSchema },
       { name: Cupon.name, schema: CuponSchema },
       { name: VersionCuponera.name, schema: VersionCuponeraSchema },
       { name: Ciudad.name, schema: CiudadSchema },
@@ -29,7 +32,7 @@ import { PromotorService } from './promotor.service';
       { name: Favorite.name, schema: FavoriteSchema },]),
   ],
   controllers: [ClientesController],
-  providers: [ClientesService, PromotorService],
+  providers: [ClientesService, PromotorService, ResetGrantService],
   exports: [ClientesService, PromotorService]
 })
 export class ClientesModule {}

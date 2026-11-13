@@ -19,6 +19,17 @@ export class Otp {
 
     @Prop({ default: true }) // 👉 Nuevo campo para controlar si está activo
   active: boolean;
+
+  /** Tras verificar el OTP: hasta cuándo se permite cambiar la clave (un solo uso). */
+  @Prop({ type: Date, default: null })
+  resetGrantUntil?: Date | null;
+
+  @Prop({ default: false })
+  resetGrantUsed?: boolean;
+
+  /** Intentos fallidos de verificación; a los 5 el código se anula. */
+  @Prop({ default: 0 })
+  intentos?: number;
 }
 
 export const OtpSchema = SchemaFactory.createForClass(Otp);

@@ -1,3 +1,5 @@
+import { RateLimit } from 'src/common/security/rate-limit.guard';
+import { AuthUsuario } from 'src/auth/decorators/auth.decorator';
 // src/clientes/clientes.controller.ts
 import {
   BadRequestException,
@@ -93,7 +95,7 @@ export class ClientesController {
 
 
     @Get('admin')
-  @Auth()
+  @AuthUsuario('clientes.ver', 'dashboard.ver', 'promotores.ver', 'promotores.gestionar')
   async findAdmin(
     @Query('q') q?: string,
     @Query('estado') estado?: string,
@@ -176,7 +178,7 @@ export class ClientesController {
     return { available: !exists };
   }
   @Get()
-  @Auth()
+  @AuthUsuario('clientes.ver', 'clientes.editar', 'promotores.ver', 'promotores.gestionar', 'notificaciones.enviar', 'cupones.crear')
   @ApiOperation({
     summary: 'Listar clientes',
     description:
@@ -289,8 +291,9 @@ export class ClientesController {
   }
 
   @Patch('reset')
+  @RateLimit(10, 15 * 60_000)
   async reset(@Body() dto: any) {
-    // Si tu reset NO requiere code, se ignora dto.code
+    // Requiere un OTP verificado (POST /otps/verify); lo comprueba el servicio.
     return this.service.resetPassword(dto.email, dto.password);
   }
 

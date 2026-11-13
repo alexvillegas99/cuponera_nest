@@ -1,3 +1,4 @@
+import { AuthUsuario } from 'src/auth/decorators/auth.decorator';
 import {
   Body,
   Controller,
@@ -26,7 +27,7 @@ export class VersionCuponeraController {
   constructor(private readonly versionService: VersionCuponeraService) {}
 
   @Post()
-  @Auth()
+  @AuthUsuario('versiones.crear')
   @ApiOperation({ summary: 'Crear una versión de cuponera' })
   @ApiBody({
     description: 'Datos para crear la versión (con ciudades disponibles opcionales)',
@@ -83,6 +84,15 @@ export class VersionCuponeraController {
     return this.versionService.findAll();
   }
 
+  @Get('disponibles')
+  @Auth()
+  @ApiOperation({ summary: 'Cuponeras activas para comprar: precio, cobertura y cercanía' })
+  disponibles(@Query('lat') lat?: string, @Query('lng') lng?: string) {
+    const la = lat !== undefined ? Number(lat) : NaN;
+    const ln = lng !== undefined ? Number(lng) : NaN;
+    return this.versionService.disponibles(la, ln);
+  }
+
   @Get(':id')
   @Auth()
   @ApiOperation({ summary: 'Obtener versión por ID' })
@@ -105,7 +115,7 @@ export class VersionCuponeraController {
   }
 
   @Delete(':id')
-  @Auth()
+  @AuthUsuario('versiones.eliminar')
   @ApiOperation({ summary: 'Eliminar versión' })
   @ApiParam({ name: 'id', required: true })
   delete(@Param('id') id: string) {
@@ -113,7 +123,7 @@ export class VersionCuponeraController {
   }
 
   @Patch(':id')
-  @Auth()
+  @AuthUsuario('versiones.editar')
   @ApiOperation({ summary: 'Actualizar versión' })
   @ApiParam({ name: 'id', required: true })
   @ApiBody({
@@ -132,7 +142,7 @@ export class VersionCuponeraController {
   }
 
   @Patch(':id/desactivar')
-  @Auth()
+  @AuthUsuario('versiones.activar', 'versiones.editar')
   @ApiOperation({ summary: 'Desactivar versión (estado=false)' })
   @ApiParam({ name: 'id', required: true })
   desactivar(@Param('id') id: string) {
@@ -140,7 +150,7 @@ export class VersionCuponeraController {
   }
 
   @Patch(':id/activar')
-  @Auth()
+  @AuthUsuario('versiones.activar', 'versiones.editar')
   @ApiOperation({ summary: 'Activar versión (estado=true)' })
   @ApiParam({ name: 'id', required: true })
   activar(@Param('id') id: string) {

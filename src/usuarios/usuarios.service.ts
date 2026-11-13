@@ -1,3 +1,4 @@
+import { ResetGrantService } from 'src/otp/reset-grant.service';
 import {
   Injectable,
   NotFoundException,
@@ -27,6 +28,7 @@ import { DateTimeService } from 'src/common/services/dateTimeService';
 @Injectable()
 export class UsuariosService {
   constructor(
+    private readonly resetGrant: ResetGrantService,
     @InjectModel(Usuario.name) private usuarioModel: Model<UsuarioDocument>,
     @InjectModel(Comentario.name)
     private readonly comentarioModel: Model<ComentarioDocument>,
@@ -1093,6 +1095,8 @@ export class UsuariosService {
       .findOne({ email: email.toLowerCase() })
       .select('_id');
     if (!u) throw new NotFoundException('Cuenta no encontrada');
+    // Se consume el permiso del OTP solo cuando todo lo demás es válido.
+    await this.resetGrant.consume(email);
 
     const hash = await bcrypt.hash(password, 10);
     // updateOne (NO u.save()): solo setea la clave y evita disparar el hook
@@ -1202,6 +1206,10 @@ export class UsuariosService {
     return !!data;
   }
   async actualizarContraseniaRecuperacion(email: string, nuevaClave: string) {
+    validarClaveSegura(nuevaClave);
+    const existe = await this.usuarioModel.exists({ email: (email || '').toLowerCase() });
+    if (!existe) throw new NotFoundException('Cuenta no encontrada');
+    await this.resetGrant.consume(email);
     const data = await this.usuarioModel.findOneAndUpdate(
       { email: email.toLowerCase() },
       { clave: bcrypt.hashSync(nuevaClave, 10) },
