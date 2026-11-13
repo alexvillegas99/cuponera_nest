@@ -211,7 +211,12 @@ export class SolicitudCuponeraService {
 
   async findByCliente(clienteId: string): Promise<any[]> {
     const docs = await this.model
-      .find({ cliente: clienteId })
+      // `cliente` puede estar guardado como texto o como ObjectId.
+      .find({
+        cliente: Types.ObjectId.isValid(clienteId)
+          ? { $in: [clienteId, new Types.ObjectId(clienteId)] }
+          : clienteId,
+      } as any)
       .sort({ createdAt: -1 })
       .populate({ path: 'cuponRegaloId', select: 'regaloAbierto' })
       .lean();

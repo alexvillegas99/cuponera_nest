@@ -1,5 +1,14 @@
 import { AuthUsuario } from 'src/auth/decorators/auth.decorator';
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  ForbiddenException,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { Auth } from 'src/auth/decorators/auth.decorator';
 import { GetUser } from 'src/auth/decorators';
@@ -15,8 +24,16 @@ export class SolicitudCuponeraController {
   ) {}
 
   @Post()
+  @Auth()
   @ApiOperation({ summary: 'Crear solicitud de cuponera con comprobante' })
-  create(@Body() dto: any) {
+  create(@Body() dto: any, @GetUser() user: any) {
+    // Un cliente solo puede pedir a su nombre (se ignora el `cliente` del body).
+    if (user?.kind === 'CLIENTE') {
+      return this.service.create({ ...dto, cliente: String(user._id) });
+    }
+    if (!(user?.permisos ?? []).includes('solicitudes.aprobar')) {
+      throw new ForbiddenException('No tienes permisos para realizar esta acción');
+    }
     return this.service.create(dto);
   }
 
@@ -36,8 +53,16 @@ export class SolicitudCuponeraController {
   }
 
   @Get('cliente/:clienteId')
+  @Auth()
   @ApiOperation({ summary: 'Solicitudes de un cliente' })
-  findByCliente(@Param('clienteId') clienteId: string) {
+  findByCliente(@Param('clienteId') clienteId: string, @GetUser() user: any) {
+    // Antes era público: con el id se veían nombre, correo, teléfono y montos.
+    const propio = user?.kind === 'CLIENTE' && String(user._id) === String(clienteId);
+    const admin =
+      user?.kind !== 'CLIENTE' && (user?.permisos ?? []).includes('solicitudes.ver');
+    if (!propio && !admin) {
+      throw new ForbiddenException('No puedes ver estas solicitudes');
+    }
     return this.service.findByCliente(clienteId);
   }
 

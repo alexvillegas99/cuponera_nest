@@ -112,6 +112,16 @@ check "GET /configuracion/solicitud_notif_emails"               403 "$API/config
 check "GET /configuracion/contrato_enjoy_ruc"                   403 "$API/configuracion/contrato_enjoy_ruc"
 check "GET /configuracion/whatsapp_numero (pública)"            "200|404" "$API/configuracion/whatsapp_numero"
 
+echo "── Solicitudes de cuponera de un cliente"
+CLI_ID=$($MONGO --eval "db.clientes.findOne({email:'$SEED_CLIENTE_EMAIL'})._id.toString()")
+OTRO_ID=$($MONGO --eval "(db.clientes.findOne({email:{\$ne:'$SEED_CLIENTE_EMAIL'}})||{_id:new ObjectId()})._id.toString()")
+check "GET solicitudes de un cliente sin sesión"                401 "$API/solicitudes-cuponera/cliente/$CLI_ID"
+check "Cliente ve SUS solicitudes"                              200 "$API/solicitudes-cuponera/cliente/$CLI_ID" -H "$(H $CLI)"
+check "Cliente ve solicitudes de OTRO cliente"                  403 "$API/solicitudes-cuponera/cliente/$OTRO_ID" -H "$(H $CLI)"
+check "Admin local ve solicitudes de un cliente"                403 "$API/solicitudes-cuponera/cliente/$CLI_ID" -H "$(H $LOC)"
+check "Admin ve solicitudes de un cliente"                      200 "$API/solicitudes-cuponera/cliente/$CLI_ID" -H "$(H $ADM)"
+check "Crear solicitud sin sesión"                              401 -X POST "$API/solicitudes-cuponera" -H "$J" -d '{}'
+
 $MONGO --eval "db.versioncuponeras.deleteMany({nombre:/HACK/}); db.rols.deleteMany({slug:'x'}); db.usuarios.deleteMany({email:/^(staff|x)-$RUN@/}); db.otps.deleteMany({email:/-$RUN@enjoy.local/})" >/dev/null
 echo; echo "Resultado: $pass OK, $fail fallos"
 exit $fail
