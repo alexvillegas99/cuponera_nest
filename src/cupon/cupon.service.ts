@@ -882,8 +882,10 @@ export class CuponService {
       ...staffLocal.map((u: any) => new Types.ObjectId(String(u._id))),
     ];
 
+    // `usuario` se guarda como string en historicocupons (el esquema usa
+    // Types.ObjectId, que Mongoose 8 trata como Mixed): buscar ambos formatos.
     const historicos = await this._historicoModel
-      .find({ usuario: { $in: idsLocal } })
+      .find({ usuario: { $in: [...idsLocal, ...idsLocal.map((i) => String(i))] } })
       .select('cupon')
       .lean();
     const cuponesYaEscaneados = new Set(
