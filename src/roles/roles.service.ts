@@ -1,3 +1,4 @@
+import { ROLES_PREDEFINIDOS } from './constants/roles-predefinidos';
 import {
   BadRequestException,
   Injectable,
@@ -24,157 +25,31 @@ export class RolesService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
-    // El seed completo (this.seed()) sobreescribiría personalizaciones del
-    // panel — lo dejamos comentado a propósito. Pero sí garantizamos que
-    // los nuevos permisos del catálogo (p.ej. promotores.*) lleguen a los
-    // roles de sistema sin tocar el resto.
-    await this._sincronizarPermisosNuevos();
+    await this._sincronizarRolesPredefinidos();
   }
 
   /**
-   * Agrega permisos faltantes a roles de sistema con $addToSet — nunca quita
-   * permisos. Pensado para roll-outs de nuevos módulos (promotores, etc.)
-   * sin perder personalizaciones que el admin haya hecho desde /roles.
+   * Sincroniza los roles predefinidos (constants/roles-predefinidos.ts):
+   * crea los que falten y SUMA permisos con $addToSet — nunca quita lo que el
+   * admin personalizó desde /roles. Así una función nueva llega a los roles
+   * que la necesitan con solo agregar su permiso a la constante.
+   * La reasignación de roles obsoletos la hace el script de la Fase 3.
    */
-  private async _sincronizarPermisosNuevos() {
-    const cambios: Array<{ slug: string; permisos: string[] }> = [
-      // admin → TODO el catálogo
-      { slug: 'admin', permisos: TODOS_LOS_PERMISOS },
-      // marketing → ver el reporte de promotores
-      { slug: 'marketing', permisos: ['promotores.ver'] },
-    ];
-    for (const c of cambios) {
+  private async _sincronizarRolesPredefinidos() {
+    for (const r of ROLES_PREDEFINIDOS) {
+      const permisos = r.permisos.filter((p) => TODOS_LOS_PERMISOS.includes(p));
       try {
         await this.rolModel.updateOne(
-          { slug: c.slug },
-          { $addToSet: { permisos: { $each: c.permisos } } },
+          { slug: r.slug },
+          {
+            $addToSet: { permisos: { $each: permisos } },
+            $setOnInsert: { slug: r.slug, nombre: r.nombre, descripcion: r.descripcion, esSistema: true },
+          },
+          { upsert: true },
         );
       } catch (e: any) {
-        this.logger.warn(
-          `Sync permisos para rol "${c.slug}" falló: ${e?.message}`,
-        );
+        this.logger.warn(`Sync del rol "${r.slug}" falló: ${e?.message}`);
       }
-    }
-  }
-
-  /**
-   * Slugs de roles obsoletos que se eliminan en cada arranque.
-   * Antes de borrar, se reasignan los usuarios afectados a un rol vigente.
-   */
-  private readonly ROLES_OBSOLETOS: Array<{ slug: string; reasignarA: string }> = [
-    { slug: 'visualizador', reasignarA: 'staff' },
-    { slug: 'mkt-fotos', reasignarA: 'marketing' },
-    { slug: 'soporte', reasignarA: 'admin' },
-    { slug: 'contador', reasignarA: 'admin' },
-    { slug: 'supervisor', reasignarA: 'admin' },
-  ];
-
-  /** Semilla de roles por defecto — upsert para actualizar permisos en cada arranque */
-  private async seed() {
-    this.logger.log('Sincronizando roles por defecto...');
-
-    const permisosAdminLocal = TODOS_LOS_PERMISOS.filter((p) => {
-      const modulo = p.split('.')[0];
-      return [
-        'web',
-        'dashboard-local',
-        'usuarios-local',
-        'perfil-local',
-        'promociones-flash',
-      ].includes(modulo);
-    });
-
-    const permisosStaff = TODOS_LOS_PERMISOS.filter((p) => {
-      const modulo = p.split('.')[0];
-      return ['dashboard-local', 'historico'].includes(modulo);
-    });
-
-    const roles = [
-      // ── Sistema ──
-      { nombre: 'Administrador', descripcion: 'Acceso total al sistema', permisos: [...TODOS_LOS_PERMISOS], esSistema: true, slug: 'admin' },
-      { nombre: 'Admin Local', descripcion: 'Administrador de establecimiento local', permisos: permisosAdminLocal, esSistema: true, slug: 'admin-local' },
-      { nombre: 'Staff', descripcion: 'Personal con acceso básico', permisos: permisosStaff, esSistema: true, slug: 'staff' },
-      // ── Predefinidos ──
-      {
-        nombre: 'Vendedor',
-        descripcion: 'Puede ver y editar solo los establecimientos que él mismo registró. Sin acceso a fotos.',
-        permisos: ['web.acceso', 'establecimientos.ver', 'establecimientos.editar'],
-        esSistema: false,
-        slug: 'vendedor',
-      },
-      {
-        nombre: 'Marketing',
-        descripcion: 'Gestión de contenido, promociones y atención por chat',
-        permisos: [
-          'web.acceso', 'dashboard.ver',
-          'cupones.ver', 'cupones.crear', 'cupones.lote',
-          'versiones.ver', 'versiones.crear', 'versiones.editar',
-          'categorias.ver', 'categorias.crear', 'categorias.editar',
-          'establecimientos.ver',
-          'notificaciones.ver', 'notificaciones.enviar',
-          'chat.ver', 'chat.responder',
-          'promotores.ver',
-        ],
-        esSistema: false,
-        slug: 'marketing',
-      },
-    ];
-
-    let creados = 0;
-    let actualizados = 0;
-
-    for (const rol of roles) {
-      const resultado = await this.rolModel.findOneAndUpdate(
-        { slug: rol.slug },
-        { $set: rol },
-        { upsert: true, new: true },
-      ) as any;
-      if (resultado.createdAt?.getTime() === resultado.updatedAt?.getTime()) {
-        creados++;
-      } else {
-        actualizados++;
-      }
-    }
-
-    this.logger.log(`Roles sincronizados: ${creados} creados, ${actualizados} actualizados`);
-
-    await this.eliminarRolesObsoletos();
-  }
-
-  /**
-   * Reasigna usuarios y borra de la BD los roles obsoletos.
-   * Idempotente: si ya no existen, no hace nada.
-   */
-  private async eliminarRolesObsoletos() {
-    const Usuario = this.rolModel.db.model('Usuario');
-
-    for (const { slug, reasignarA } of this.ROLES_OBSOLETOS) {
-      const obsoleto: any = await this.rolModel.findOne({ slug });
-      if (!obsoleto) continue;
-
-      const destino: any = await this.rolModel.findOne({ slug: reasignarA });
-      if (!destino) {
-        this.logger.warn(
-          `Rol obsoleto "${slug}" NO eliminado: el rol destino "${reasignarA}" no existe.`,
-        );
-        continue;
-      }
-
-      // Reasignar usuarios que apuntan al rol obsoleto.
-      const filtroRef = { rolRef: obsoleto._id };
-      const filtroSlug = { rol: slug };
-      const r1 = await Usuario.updateMany(filtroRef, {
-        $set: { rolRef: destino._id, rol: destino.slug },
-      });
-      const r2 = await Usuario.updateMany(filtroSlug, {
-        $set: { rolRef: destino._id, rol: destino.slug },
-      });
-      const reasignados = (r1.modifiedCount || 0) + (r2.modifiedCount || 0);
-
-      await this.rolModel.deleteOne({ _id: obsoleto._id });
-      this.logger.log(
-        `Rol obsoleto "${slug}" eliminado. ${reasignados} usuario(s) reasignado(s) a "${reasignarA}".`,
-      );
     }
   }
 

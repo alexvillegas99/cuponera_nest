@@ -9,6 +9,7 @@ import {
   Delete,
   Patch,
   Query,
+  ForbiddenException,
 } from '@nestjs/common';
 import { CuponService } from './cupon.service';
 import { CreateCuponDto } from './dto/create-cupon.dto';
@@ -243,6 +244,7 @@ async conteoEstados() {
   }
 
   @Post('clientes/:clienteId/cupones/:cuponId/asignar')
+  @Auth()
   @ApiOperation({
     summary: 'Asignar un cupón específico a un cliente',
     description:
@@ -279,7 +281,13 @@ async conteoEstados() {
   async asignar(
     @Param('clienteId') clienteId: string,
     @Param('cuponId') cuponId: string,
+    @GetUser() user: any,
   ) {
+    // Antes era público: cualquiera podía asignar una cuponera física a OTRO
+    // cliente. Ahora: el cliente solo a sí mismo; personal con cupones.asignar.
+    const propio = user?.kind === 'CLIENTE' && String(user._id) === String(clienteId);
+    const staff = user?.kind !== 'CLIENTE' && (user?.permisos ?? []).includes('cupones.asignar');
+    if (!propio && !staff) throw new ForbiddenException('No puedes asignar este cupón a otra cuenta');
     return this.cuponService.asignarCuponACliente(cuponId, clienteId);
   }
 

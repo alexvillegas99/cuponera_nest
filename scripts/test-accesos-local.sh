@@ -131,6 +131,59 @@ check "Cliente ve el perfil de OTRO cliente"                    403 "$API/client
 check "Cliente cambia el dispositivo de OTRO cliente"           403 -X PATCH "$API/clientes/$OTRO_ID/fcm-token" -H "$(H $CLI)" -H "$J" -d '{"fcmToken":"x"}'
 check "Dispositivo sin sesión (app publicada, se registra)"     200 -X PATCH "$API/clientes/$CLI_ID/fcm-token" -H "$J" -d '{"fcmToken":"prueba-local"}'
 
+echo "── Roles predefinidos (Fase 3): lo que cada uno puede y no puede"
+RP=${SEED_ROLES_PASSWORD:-}
+if [[ -n "$RP" ]]; then
+  STF=$(login /auth/login "rol.staff@enjoy.local" "$RP")
+  VEN=$(login /auth/login "rol.vendedor@enjoy.local" "$RP")
+  MKT=$(login /auth/login "rol.marketing@enjoy.local" "$RP")
+  ATE=$(login /auth/login "rol.atencion@enjoy.local" "$RP")
+  FIN=$(login /auth/login "rol.finanzas@enjoy.local" "$RP")
+  AUD=$(login /auth/login "rol.auditor@enjoy.local" "$RP")
+  OTRO_LOCAL=$($MONGO --eval "db.usuarios.findOne({rol:'admin-local',email:{\$ne:'$SEED_LOCAL_EMAIL'}})._id.toString()")
+  CUP=$($MONGO --eval "db.cupons.findOne({})._id.toString()")
+  CANJE="{\"cupon\":\"$CUP\",\"usuario\":\"$OTRO_LOCAL\"}"
+  # staff
+  check "staff: canjear en OTRO local"                              403 -X POST "$API/historico" -H "$(H $STF)" -H "$J" -d "$CANJE"
+  check "staff: listar cupones de todos"                             403 "$API/cupones" -H "$(H $STF)"
+  check "staff: listar clientes"                                     403 "$API/clientes/admin" -H "$(H $STF)"
+  # vendedor
+  check "vendedor: ver establecimientos"                             200 "$API/usuarios/establecimientos?page=1&limit=5" -H "$(H $VEN)"
+  check "vendedor: canjear un cupón (permiso de lectura no basta)"   403 -X POST "$API/historico" -H "$(H $VEN)" -H "$J" -d "$CANJE"
+  check "vendedor: ver roles"                                        403 "$API/roles" -H "$(H $VEN)"
+  check "vendedor: cobros por atender"                               403 "$API/pagos/admin/por-atender" -H "$(H $VEN)"
+  # marketing
+  check "marketing: ver cupones"                                     200 "$API/cupones" -H "$(H $MKT)"
+  check "marketing: canjear un cupón"                                403 -X POST "$API/historico" -H "$(H $MKT)" -H "$J" -d "$CANJE"
+  # GET /usuarios acepta establecimientos.ver (la lista de locales sale de ahí): Fase 5 acotarlo.
+  check "marketing: listar locales (vía /usuarios)"                  200 "$API/usuarios" -H "$(H $MKT)"
+  # atención
+  check "atención: ver cupones"                                      200 "$API/cupones" -H "$(H $ATE)"
+  check "atención: ver clientes"                                     200 "$API/clientes/admin?page=1&limit=1" -H "$(H $ATE)"
+  check "atención: ver solicitudes"                                  200 "$API/solicitudes-cuponera" -H "$(H $ATE)"
+  check "atención: aprobar una solicitud"                            403 -X PATCH "$API/solicitudes-cuponera/000000000000000000000000/estado" -H "$(H $ATE)" -H "$J" -d '{"estado":"APROBADO"}'
+  check "atención: crear cupones"                                    403 -X POST "$API/cupones" -H "$(H $ATE)" -H "$J" -d '{}'
+  # finanzas
+  check "finanzas: cobros por atender"                               200 "$API/pagos/admin/por-atender" -H "$(H $FIN)"
+  check "finanzas: ver solicitudes"                                  200 "$API/solicitudes-cuponera" -H "$(H $FIN)"
+  check "finanzas: crear versiones de cuponera"                      403 -X POST "$API/versiones" -H "$(H $FIN)" -H "$J" -d '{}'
+  check "finanzas: ver configuración con secretos"                   403 "$API/configuracion/admin/todas" -H "$(H $FIN)"
+  # auditor
+  check "auditor: ver usuarios"                                      200 "$API/usuarios" -H "$(H $AUD)"
+  check "auditor: ver roles"                                         200 "$API/roles" -H "$(H $AUD)"
+  check "auditor: crear usuarios"                                    403 -X POST "$API/usuarios" -H "$(H $AUD)" -H "$J" -d '{}'
+  check "auditor: editar un rol"                                     403 -X PATCH "$API/roles/000000000000000000000000" -H "$(H $AUD)" -H "$J" -d '{}'
+  check "auditor: cobros por atender (aprobar)"                      403 "$API/pagos/admin/por-atender" -H "$(H $AUD)"
+  check "auditor: canjear un cupón"                                  403 -X POST "$API/historico" -H "$(H $AUD)" -H "$J" -d "$CANJE"
+else
+  echo "  (SEED_ROLES_PASSWORD no definido: se omiten)"
+fi
+
+echo "── Asignar cuponera física"
+CUPLIBRE=$($MONGO --eval "db.cupons.findOne({})._id.toString()")
+check "Asignar cupón sin sesión"                                     401 -X POST "$API/cupones/clientes/$CLI_ID/cupones/$CUPLIBRE/asignar"
+check "Cliente asigna un cupón a OTRO cliente"                       403 -X POST "$API/cupones/clientes/$OTRO_ID/cupones/$CUPLIBRE/asignar" -H "$(H $CLI)"
+
 $MONGO --eval "db.versioncuponeras.deleteMany({nombre:/HACK/}); db.rols.deleteMany({slug:'x'}); db.usuarios.deleteMany({email:/^(staff|x)-$RUN@/}); db.otps.deleteMany({email:/-$RUN@enjoy.local/})" >/dev/null
 echo; echo "Resultado: $pass OK, $fail fallos"
 exit $fail

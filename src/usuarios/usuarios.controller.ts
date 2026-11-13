@@ -125,6 +125,11 @@ export class UsuariosController {
         dto.rol = 'admin-local';
       } else {
         // Admin local creando a su personal: siempre staff de SU local.
+        // El permiso usuarios-local.ver no basta (p. ej. un rol de solo
+        // lectura podría tenerlo): hay que SER admin-local.
+        if (String(user?.rol ?? '').toLowerCase() !== 'admin-local') {
+          throw new ForbiddenException('No tienes permisos para crear usuarios');
+        }
         dto.rol = 'staff';
         dto.usuarioCreacion = user._id;
       }

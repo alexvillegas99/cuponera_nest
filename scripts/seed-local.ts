@@ -13,7 +13,7 @@
 import 'dotenv/config';
 import * as mongoose from 'mongoose';
 import * as bcrypt from 'bcrypt';
-import { TODOS_LOS_PERMISOS } from '../src/roles/constants/permisos.constant';
+import { ROLES_PREDEFINIDOS } from '../src/roles/constants/roles-predefinidos';
 
 const url = process.env.MONGO_URL || '';
 if (!/^mongodb:\/\/(localhost|127\.0\.0\.1)/.test(url)) {
@@ -34,20 +34,8 @@ async function main() {
   const usuarios = db.collection('usuarios');
   const clientes = db.collection('clientes');
 
-  // ── Roles (igual que RolesService.seed) ──
-  const porModulo = (mods: string[]) =>
-    TODOS_LOS_PERMISOS.filter((p) => mods.includes(p.split('.')[0]));
-
-  const defs = [
-    { nombre: 'Administrador', descripcion: 'Acceso total al sistema', permisos: [...TODOS_LOS_PERMISOS], esSistema: true, slug: 'admin' },
-    { nombre: 'Admin Local', descripcion: 'Administrador de establecimiento local', permisos: porModulo(['web', 'dashboard-local', 'usuarios-local', 'perfil-local', 'promociones-flash']), esSistema: true, slug: 'admin-local' },
-    { nombre: 'Staff', descripcion: 'Personal con acceso básico', permisos: porModulo(['dashboard-local', 'historico']), esSistema: true, slug: 'staff' },
-    { nombre: 'Vendedor', descripcion: 'Puede ver y editar solo los establecimientos que él mismo registró. Sin acceso a fotos.', permisos: ['web.acceso', 'establecimientos.ver', 'establecimientos.editar'], esSistema: false, slug: 'vendedor' },
-    {
-      nombre: 'Marketing', descripcion: 'Gestión de contenido, promociones y atención por chat', esSistema: false, slug: 'marketing',
-      permisos: ['web.acceso', 'dashboard.ver', 'cupones.ver', 'cupones.crear', 'cupones.lote', 'versiones.ver', 'versiones.crear', 'versiones.editar', 'categorias.ver', 'categorias.crear', 'categorias.editar', 'establecimientos.ver', 'notificaciones.ver', 'notificaciones.enviar', 'chat.ver', 'chat.responder', 'promotores.ver'],
-    },
-  ];
+  // ── Roles: la misma definición que usa el backend al arrancar ──
+  const defs = ROLES_PREDEFINIDOS.map((r) => ({ ...r, esSistema: true }));
   const now = new Date();
   for (const r of defs) {
     await roles.updateOne(
@@ -88,6 +76,39 @@ async function main() {
     );
   }
   console.log('Usuarios del panel: admin y admin-local listos');
+
+  // ── Un usuario por cada rol (para la matriz de accesos) ──
+  // Correo: rol.<slug>@enjoy.local · clave: SEED_ROLES_PASSWORD (.env local).
+  const passRoles = process.env.SEED_ROLES_PASSWORD;
+  if (passRoles) {
+    const local = await usuarios.findOne({ email: req('SEED_LOCAL_EMAIL').toLowerCase() });
+    const otros = ['staff', 'vendedor', 'marketing', 'atencion', 'finanzas', 'auditor'];
+    for (const [k, slug] of otros.entries()) {
+      await usuarios.updateOne(
+        { email: `rol.${slug}@enjoy.local` },
+        {
+          $set: {
+            nombre: `Prueba ${slug}`,
+            identificacion: `17100000${String(k + 10).padStart(2, '0')}`,
+            rol: slug,
+            rolRef: await rolId(slug),
+            clave: bcrypt.hashSync(passRoles, 10),
+            estado: true,
+            deleted: false,
+            contratoAceptado: true,
+            // El staff pertenece al local de prueba.
+            usuarioCreacion: slug === 'staff' ? (local?._id ?? null) : null,
+            updatedAt: now,
+          },
+          $setOnInsert: { email: `rol.${slug}@enjoy.local`, createdAt: now },
+        },
+        { upsert: true },
+      );
+    }
+    console.log(`Usuarios por rol: ${otros.join(', ')} listos`);
+  } else {
+    console.log('SEED_ROLES_PASSWORD no definido: se omiten los usuarios por rol');
+  }
 
   // ── Cliente de la app ──
   await clientes.updateOne(
