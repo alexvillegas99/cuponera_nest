@@ -55,6 +55,13 @@ export class CuponController {
   return await this.cuponService.findAll(+page, +limit, search);
 }
 
+@Get('admin/conteo-estados')
+@AuthUsuario('cupones.ver', 'dashboard.ver')
+@ApiOperation({ summary: 'Cantidad de cupones por estado (para el panel)' })
+async conteoEstados() {
+  return this.cuponService.conteoPorEstado();
+}
+
 
   @Get(':id')
   @Auth()

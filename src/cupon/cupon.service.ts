@@ -247,6 +247,19 @@ export class CuponService {
       throw new NotFoundException('Cupón no encontrado para eliminar');
   }
 
+  /** Cantidad de cupones por estado (activo / inactivo / bloqueado). */
+  async conteoPorEstado() {
+    const filas = await this._cuponModel.aggregate([
+      { $group: { _id: { $toLower: { $ifNull: ['$estado', 'inactivo'] } }, n: { $sum: 1 } } },
+    ]);
+    const c: Record<string, number> = {};
+    for (const f of filas) c[f._id] = f.n;
+    const activo = c['activo'] ?? 0;
+    const inactivo = c['inactivo'] ?? 0;
+    const bloqueado = c['bloqueado'] ?? 0;
+    return { activo, inactivo, bloqueado, total: filas.reduce((t, f) => t + f.n, 0) };
+  }
+
   /**
    * Reserva el canje del cupón en un local de forma ATÓMICA: suma el escaneo
    * solo si ese local aún no está en `localesCanjeados`. Devuelve false si
