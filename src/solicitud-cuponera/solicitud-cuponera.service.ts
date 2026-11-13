@@ -252,14 +252,27 @@ export class SolicitudCuponeraService {
       throw new BadRequestException('La solicitud ya fue procesada');
     }
 
+    // APROBADO: el cupón se crea ANTES de avisar (si falla, no se le dice al
+    // cliente que ya está aprobada) y los avisos/comisión no pueden tumbarlo.
+    let cuponCreado: any = null;
+    let errorCupon: string | undefined;
+    if (estado === EstadoSolicitud.APROBADO) {
+      try {
+        cuponCreado = await this.emitirCupon(String(doc._id));
+      } catch (error) {
+        errorCupon = error.message;
+        this.logger.error(`Error al crear cupón automático para solicitud ${id}: ${error.message}`);
+      }
+    }
+
     // Enviar notificación push + correo al cliente
     const clienteId = (doc.cliente as any)?._id?.toString() ?? doc.cliente?.toString();
     const anio = new Date().getFullYear().toString();
 
-    if (estado === EstadoSolicitud.APROBADO) {
+    if (estado === EstadoSolicitud.APROBADO && cuponCreado) {
       // Push
       if (clienteId) {
-        const fcmToken = await this.clientesService.obtenerFcmToken(clienteId);
+        const fcmToken = await this.clientesService.obtenerFcmToken(clienteId).catch(() => null);
         const tituloPush = doc.esRegalo
           ? '¡Regalo enviado! 🎁'
           : '¡Solicitud aprobada! 🎉';
@@ -268,11 +281,9 @@ export class SolicitudCuponeraService {
               doc.destinatarioNombre ?? 'tu destinatario'
             }.`
           : `Tu cuponera "${doc.cuponeraNombre}" fue aprobada. ¡Ya puedes usarla!`;
-        await this.notificacionesService.enviarAToken(
-          fcmToken,
-          tituloPush,
-          cuerpoPush,
-        );
+        await this.notificacionesService
+          .enviarAToken(fcmToken, tituloPush, cuerpoPush)
+          .catch((e) => this.logger.error(`Push aprobación: ${e?.message}`));
       }
       // Correo
       try {
@@ -330,53 +341,111 @@ export class SolicitudCuponeraService {
       }
     }
 
-    // Si se aprueba, crear cupón automáticamente y acreditar comisión al
-    // promotor (si la solicitud trajo un código válido).
+    // Comisión del promotor (si aplica). No debe impedir la respuesta.
     if (estado === EstadoSolicitud.APROBADO) {
-      await this.promotorService.acreditarComision({
-        docId: doc._id as Types.ObjectId,
-        promotorId: (doc as any).promotorId,
-        montoComision: (doc as any).montoComision,
-        comisionAcreditada: (doc as any).comisionAcreditada,
-        marcarAcreditada: async () => {
-          await this.model.findByIdAndUpdate(doc._id, {
-            $set: { comisionAcreditada: true },
-          });
-        },
-      });
       try {
-        const cupon = await this.crearCuponDesdeAprobacion(doc);
-        return { solicitud: doc, cuponCreado: cupon };
-      } catch (error) {
-        this.logger.error(
-          `Error al crear cupón automático para solicitud ${id}: ${error.message}`,
-        );
-        return { solicitud: doc, cuponCreado: null, error: error.message };
+        await this.promotorService.acreditarComision({
+          docId: doc._id as Types.ObjectId,
+          promotorId: (doc as any).promotorId,
+          montoComision: (doc as any).montoComision,
+          comisionAcreditada: (doc as any).comisionAcreditada,
+          marcarAcreditada: async () => {
+            await this.model.findByIdAndUpdate(doc._id, {
+              $set: { comisionAcreditada: true },
+            });
+          },
+        });
+      } catch (e) {
+        this.logger.error(`Error acreditando comisión de la solicitud ${id}: ${e?.message}`);
       }
+      return errorCupon
+        ? { solicitud: doc, cuponCreado: null, error: errorCupon }
+        : { solicitud: doc, cuponCreado };
     }
 
     return { solicitud: doc };
   }
 
   /**
-   * Busca la versión de cuponera por nombre y crea un cupón activo
-   * asignado al cliente de la solicitud.
+   * Emite (una sola vez) el cupón de una solicitud APROBADA. Si ya tiene
+   * cupón, lo devuelve sin crear otro: se puede reintentar sin duplicar.
    */
-  private async crearCuponDesdeAprobacion(solicitud: SolicitudCuponera) {
-    // Buscar versión por nombre exacto (case-insensitive)
-    const versiones = await this.versionService.buscarPorNombre(
-      solicitud.cuponeraNombre,
-      'true',
-    );
-
-    if (!versiones || versiones.length === 0) {
-      throw new Error(
-        `No se encontró versión de cuponera activa con nombre "${solicitud.cuponeraNombre}"`,
-      );
+  async emitirCupon(solicitudId: string) {
+    const solicitud: any = await this.model.findById(solicitudId).lean();
+    if (!solicitud) throw new NotFoundException('Solicitud no encontrada');
+    if (solicitud.estado !== EstadoSolicitud.APROBADO) {
+      throw new BadRequestException('La solicitud no está aprobada');
     }
+    const existente = solicitud.cuponId ?? solicitud.cuponRegaloId;
+    if (existente) return { _id: existente, yaExistia: true };
 
-    // Tomar la primera coincidencia
-    const version = versiones[0];
+    // Reclamo atómico: solo una llamada a la vez crea el cupón.
+    const hace2min = new Date(Date.now() - 2 * 60 * 1000);
+    const reclamada = await this.model.findOneAndUpdate(
+      {
+        _id: solicitud._id,
+        estado: EstadoSolicitud.APROBADO,
+        cuponId: null,
+        cuponRegaloId: null,
+        $or: [{ emitiendoCuponEn: null }, { emitiendoCuponEn: { $lt: hace2min } }],
+      } as any,
+      { $set: { emitiendoCuponEn: new Date() } },
+      { new: true },
+    );
+    if (!reclamada) {
+      const actual: any = await this.model.findById(solicitudId).lean();
+      const ya = actual?.cuponId ?? actual?.cuponRegaloId;
+      if (ya) return { _id: ya, yaExistia: true };
+      throw new BadRequestException('La emisión de este cupón ya está en curso');
+    }
+    try {
+      const cupon = await this.crearCuponDesdeAprobacion(reclamada as any);
+      await this.model.updateOne({ _id: solicitud._id }, { $set: { emitiendoCuponEn: null, emisionError: null } });
+      return cupon;
+    } catch (e) {
+      await this.model.updateOne(
+        { _id: solicitud._id },
+        { $set: { emitiendoCuponEn: null, emisionError: String(e?.message ?? e).slice(0, 500) } },
+      );
+      throw e;
+    }
+  }
+
+  /** Solicitudes aprobadas cuyo cupón falló al emitirse (solo las nuevas). */
+  async sinCupon() {
+    return this.model
+      .find({ estado: EstadoSolicitud.APROBADO, emisionError: { $ne: null }, cuponId: null, cuponRegaloId: null } as any)
+      .sort({ updatedAt: -1 })
+      .limit(200)
+      .lean();
+  }
+
+  /** Reintento manual: solo para solicitudes marcadas con error de emisión. */
+  async reintentarEmision(id: string) {
+    const s: any = await this.model.findById(id).lean();
+    if (!s) throw new NotFoundException('Solicitud no encontrada');
+    if (!s.emisionError) {
+      throw new BadRequestException('Esta solicitud no tiene un error de emisión pendiente');
+    }
+    return this.emitirCupon(id);
+  }
+
+  /** Versión de la solicitud: por id si se guardó; si no, por nombre EXACTO. */
+  private async versionDeSolicitud(solicitud: any) {
+    if (solicitud.versionId) {
+      const v = await this.versionService.findByIdRaw(String(solicitud.versionId)).catch(() => null);
+      if (v) return v;
+    }
+    const v = await this.versionService.buscarActivaPorNombreExacto(solicitud.cuponeraNombre);
+    if (!v) {
+      throw new Error(`No se encontró versión de cuponera activa con nombre "${solicitud.cuponeraNombre}"`);
+    }
+    return v;
+  }
+
+  /** Crea el cupón activo (o el regalo cerrado) y lo enlaza a la solicitud. */
+  private async crearCuponDesdeAprobacion(solicitud: SolicitudCuponera) {
+    const version: any = await this.versionDeSolicitud(solicitud);
 
     // ── Regalo ────────────────────────────────────────────────────────
     // El cupón se asigna al DESTINATARIO pero queda "cerrado" hasta que
@@ -396,15 +465,9 @@ export class SolicitudCuponeraService {
         `Regalo (cupón ${cupon._id}) creado para destinatario ${solicitud.destinatarioId} desde solicitud ${solicitud._id}`,
       );
 
-      // Guardar referencia del cupón en la solicitud (para ver si se abrió).
-      try {
-        await this.model.updateOne(
-          { _id: solicitud._id },
-          { cuponRegaloId: cupon._id },
-        );
-      } catch (e) {
-        this.logger.error(`Error guardando cuponRegaloId: ${e?.message}`);
-      }
+      await this.model
+        .updateOne({ _id: solicitud._id }, { cuponRegaloId: cupon._id })
+        .catch((e) => this.logger.error(`Error guardando cuponRegaloId (${solicitud._id} → ${cupon._id}): ${e?.message}`));
 
       // Notificar al destinatario (best-effort).
       this._notificarRegaloAlDestinatario(solicitud, cupon).catch((e) =>
@@ -414,11 +477,13 @@ export class SolicitudCuponeraService {
       return cupon;
     }
 
-    // Crear cupón activo asignado al cliente
     const cupon = await this.cuponService.create({
       version: version._id,
       cliente: solicitud.cliente,
     });
+    await this.model
+      .updateOne({ _id: solicitud._id }, { cuponId: String(cupon._id) })
+      .catch((e) => this.logger.error(`Error guardando cuponId (${solicitud._id} → ${cupon._id}): ${e?.message}`));
 
     this.logger.log(
       `Cupón ${cupon._id} creado automáticamente para solicitud ${solicitud._id}`,

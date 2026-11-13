@@ -122,6 +122,15 @@ check "Admin local ve solicitudes de un cliente"                403 "$API/solici
 check "Admin ve solicitudes de un cliente"                      200 "$API/solicitudes-cuponera/cliente/$CLI_ID" -H "$(H $ADM)"
 check "Crear solicitud sin sesión"                              401 -X POST "$API/solicitudes-cuponera" -H "$J" -d '{}'
 
+echo "── Perfil y dispositivo de un cliente"
+check "Editar perfil de un cliente sin sesión"                  401 -X PUT "$API/clientes/me/$CLI_ID" -H "$J" -d '{"nombres":"Hackeado"}'
+check "Cliente edita el perfil de OTRO cliente"                 403 -X PUT "$API/clientes/me/$OTRO_ID" -H "$(H $CLI)" -H "$J" -d '{"nombres":"Hackeado"}'
+check "Cliente edita SU perfil"                                 200 -X PUT "$API/clientes/me/$CLI_ID" -H "$(H $CLI)" -H "$J" -d '{"nombres":"Cliente"}'
+check "Ver perfil de un cliente sin sesión"                     401 "$API/clientes/perfil/$CLI_ID"
+check "Cliente ve el perfil de OTRO cliente"                    403 "$API/clientes/perfil/$OTRO_ID" -H "$(H $CLI)"
+check "Cliente cambia el dispositivo de OTRO cliente"           403 -X PATCH "$API/clientes/$OTRO_ID/fcm-token" -H "$(H $CLI)" -H "$J" -d '{"fcmToken":"x"}'
+check "Dispositivo sin sesión (app publicada, se registra)"     200 -X PATCH "$API/clientes/$CLI_ID/fcm-token" -H "$J" -d '{"fcmToken":"prueba-local"}'
+
 $MONGO --eval "db.versioncuponeras.deleteMany({nombre:/HACK/}); db.rols.deleteMany({slug:'x'}); db.usuarios.deleteMany({email:/^(staff|x)-$RUN@/}); db.otps.deleteMany({email:/-$RUN@enjoy.local/})" >/dev/null
 echo; echo "Resultado: $pass OK, $fail fallos"
 exit $fail

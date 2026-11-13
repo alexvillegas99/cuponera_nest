@@ -35,6 +35,29 @@ export class Pago {
   @Prop({ type: Types.ObjectId, ref: 'SolicitudCuponera', default: null })
   solicitudId: Types.ObjectId;
 
+  /** Emisión del cupón tras aprobar: PENDIENTE | EMITIDO | ERROR. */
+  @Prop({ type: String, default: null })
+  cuponEstado?: string | null;
+
+  @Prop({ type: String, default: null })
+  cuponError?: string | null;
+
+  /** Cuándo se intentó emitir por última vez (para reintentos seguros). */
+  @Prop({ type: Date, default: null })
+  cuponIntentoEn?: Date | null;
+
+  /** Versión exacta cobrada (el cupón se emite por id, no por nombre). */
+  @Prop({ type: String, default: null })
+  versionId?: string | null;
+
+  /** Referencia del proveedor usada al emitir (reintentos). */
+  @Prop({ type: String, default: null })
+  observacionReferencia?: string | null;
+
+  /** Motivo cuando el pago queda en REVISION (cobrado pero no cuadra). */
+  @Prop({ type: String, default: null })
+  revisionMotivo?: string | null;
+
   @Prop({ default: 'payphone' })
   metodo: string;
 

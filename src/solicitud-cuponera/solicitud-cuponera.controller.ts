@@ -29,7 +29,13 @@ export class SolicitudCuponeraController {
   create(@Body() dto: any, @GetUser() user: any) {
     // Un cliente solo puede pedir a su nombre (se ignora el `cliente` del body).
     if (user?.kind === 'CLIENTE') {
-      return this.service.create({ ...dto, cliente: String(user._id) });
+      // Campos internos que solo pone el servidor.
+      const {
+        estado, notaAdmin, cuponId, versionId, cuponRegaloId, comisionAcreditada,
+        promotorId, montoComision, montoDescuento, montoFinal, porcentajeComision,
+        porcentajeDescuento, _id, ...limpio
+      } = dto ?? {};
+      return this.service.create({ ...limpio, cliente: String(user._id) });
     }
     if (!(user?.permisos ?? []).includes('solicitudes.aprobar')) {
       throw new ForbiddenException('No tienes permisos para realizar esta acción');
@@ -64,6 +70,21 @@ export class SolicitudCuponeraController {
       throw new ForbiddenException('No puedes ver estas solicitudes');
     }
     return this.service.findByCliente(clienteId);
+  }
+
+  @Get('admin/sin-cupon')
+  @AuthUsuario('solicitudes.aprobar')
+  @ApiOperation({ summary: 'Solicitudes aprobadas cuyo cupón no se pudo emitir' })
+  sinCupon() {
+    return this.service.sinCupon();
+  }
+
+  @Post(':id/emitir')
+  @AuthUsuario('solicitudes.aprobar')
+  @ApiOperation({ summary: 'Reintentar la emisión del cupón (solo si falló)' })
+  emitir(@Param('id') id: string) {
+    if (!/^[a-f0-9]{24}$/i.test(String(id))) throw new ForbiddenException('Id inválido');
+    return this.service.reintentarEmision(id);
   }
 
   @Get(':id')

@@ -7,6 +7,7 @@ import { ConfiguracionModule } from 'src/configuracion/configuracion.module';
 import { SolicitudCuponeraModule } from 'src/solicitud-cuponera/solicitud-cuponera.module';
 import { NotificacionesModule } from 'src/notificaciones/notificaciones.module';
 import { ClientesModule } from 'src/clientes/clientes.module';
+import { VersionCuponeraModule } from 'src/version-cuponera/version-cuponera.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { ClientesModule } from 'src/clientes/clientes.module';
     SolicitudCuponeraModule,
     NotificacionesModule,
     ClientesModule,
+    VersionCuponeraModule,
   ],
   controllers: [PagosController],
   providers: [PagosService],

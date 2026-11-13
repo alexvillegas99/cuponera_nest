@@ -1,13 +1,19 @@
-import { Body, Controller, Get, Param, Post, Query, Res } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, Post, Query, Res } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
 import { PagosService } from './pagos.service';
-import { Auth } from 'src/auth/decorators/auth.decorator';
+import { Auth, AuthUsuario } from 'src/auth/decorators/auth.decorator';
+import { GetUser } from 'src/auth/decorators';
 
 @ApiTags('Pagos')
 @Controller('pagos')
 export class PagosController {
   constructor(private readonly pagosService: PagosService) {}
+
+  /** Un cliente siempre paga a su nombre (se ignora el clienteId del body). */
+  private conCliente(body: any, user: any) {
+    return user?.kind === 'CLIENTE' ? { ...body, clienteId: String(user._id) } : body;
+  }
 
   // ── Estado general ──
   @Get('metodos')
@@ -19,16 +25,43 @@ export class PagosController {
   @Get('estado/:clientTransactionId')
   @Auth()
   @ApiOperation({ summary: 'Consultar estado de un pago' })
-  consultarEstado(@Param('clientTransactionId') id: string) {
-    return this.pagosService.consultarEstado(id);
+  consultarEstado(@Param('clientTransactionId') id: string, @GetUser() user: any) {
+    return this.pagosService.consultarEstado(id, user);
+  }
+
+  // ── Admin: pagos cobrados que necesitan atención ──
+  @Get('admin/por-atender')
+  @AuthUsuario('solicitudes.aprobar')
+  @ApiOperation({ summary: 'Pagos aprobados sin cupón o en revisión' })
+  porAtender() {
+    return this.pagosService.pagosPorAtender();
+  }
+
+  @Post('admin/:id/reemitir')
+  @AuthUsuario('solicitudes.aprobar')
+  @ApiOperation({ summary: 'Reintentar la emisión del cupón de un pago aprobado (idempotente)' })
+  reemitir(@Param('id') id: string) {
+    if (!/^[a-f0-9]{24}$/i.test(String(id))) throw new BadRequestException('Id inválido');
+    return this.pagosService.emitirCuponDePago(id).then((estado) => ({ estado }));
+  }
+
+  @Post('admin/:id/resolver')
+  @AuthUsuario('solicitudes.aprobar')
+  @ApiOperation({ summary: 'Resolver un pago en REVISION: aprobar (emite cupón) o rechazar' })
+  resolver(@Param('id') id: string, @Body() body: { accion: 'aprobar' | 'rechazar'; nota?: string }) {
+    if (!/^[a-f0-9]{24}$/i.test(String(id))) throw new BadRequestException('Id inválido');
+    if (body?.accion !== 'aprobar' && body?.accion !== 'rechazar') {
+      throw new BadRequestException("accion debe ser 'aprobar' o 'rechazar'");
+    }
+    return this.pagosService.resolverRevision(id, body.accion, body.nota);
   }
 
   // ── PayPhone ──
   @Post('payphone/iniciar')
   @Auth()
   @ApiOperation({ summary: 'Inicia pago PayPhone — retorna URL del formulario web' })
-  iniciarPayPhone(@Body() body: any) {
-    return this.pagosService.iniciarPayPhone(body);
+  iniciarPayPhone(@Body() body: any, @GetUser() user: any) {
+    return this.pagosService.iniciarPayPhone(this.conCliente(body, user));
   }
 
   @Get('payphone/formulario')
@@ -61,8 +94,8 @@ export class PagosController {
   @Post('paypal/crear')
   @Auth()
   @ApiOperation({ summary: 'Crear orden de pago PayPal' })
-  crearOrdenPayPal(@Body() body: any) {
-    return this.pagosService.crearOrdenPayPal(body);
+  crearOrdenPayPal(@Body() body: any, @GetUser() user: any) {
+    return this.pagosService.crearOrdenPayPal(this.conCliente(body, user));
   }
 
   @Post('paypal/capturar/:orderId')
@@ -82,8 +115,8 @@ export class PagosController {
   @Post('crear')
   @Auth()
   @ApiOperation({ summary: 'Crear transacción PayPhone (legacy)' })
-  crearTransaccion(@Body() body: any) {
-    return this.pagosService.iniciarPayPhone(body);
+  crearTransaccion(@Body() body: any, @GetUser() user: any) {
+    return this.pagosService.iniciarPayPhone(this.conCliente(body, user));
   }
 
   @Post('webhook')

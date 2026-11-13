@@ -1,3 +1,4 @@
+import { Types } from 'mongoose';
 import {
   BadRequestException,
   forwardRef,
@@ -134,6 +135,15 @@ export class HistoricoCuponService {
     return null;
   }
 
+  /** Id del admin-local "raíz" de un usuario (staff → quien lo creó). */
+  async localRaiz(usuarioId: string): Promise<string> {
+    const user: any = await this._usuariosModel.findById(usuarioId);
+    if (!user) throw new NotFoundException('Usuario no encontrado');
+    return String(user.rol).toLowerCase() === 'staff' && user.usuarioCreacion
+      ? String(user.usuarioCreacion)
+      : String(user._id);
+  }
+
   /** IDs (string) de usuarios que se consideran "mismo grupo" para control de repetición */
   private async obtenerIdsUsuariosRelacionados(usuarioId: string): Promise<string[]> {
     const user: any = await this._usuariosModel.findById(usuarioId);
@@ -163,10 +173,13 @@ export class HistoricoCuponService {
     const arrayUsuarios = await this.obtenerIdsUsuariosRelacionados(dto.usuario);
 
     // 1) Anti-duplicado por grupo de usuarios
+    // Ids guardados como texto u ObjectId (datos antiguos): buscar ambos.
+    const ambos = (ids: string[]) =>
+      ids.flatMap((x) => (Types.ObjectId.isValid(x) ? [x, new Types.ObjectId(x)] : [x]));
     const historicoExistente = await this.historicoModel.findOne({
-      cupon: dto.cupon,
-      usuario: { $in: arrayUsuarios },
-    });
+      cupon: { $in: ambos([String(dto.cupon)]) },
+      usuario: { $in: ambos(arrayUsuarios) },
+    } as any);
     if (historicoExistente) {
       throw new BadRequestException(
         'El usuario ya ha escaneado este cupón anteriormente',
@@ -204,15 +217,25 @@ export class HistoricoCuponService {
 
       
 
-    // 5) Registrar histórico + aumentar contador de cupón
-    const historico = await this.historicoModel.create({
-      cupon: dto.cupon,
-      usuario: dto.usuario,
-      escaneadoPor: dto.escaneadoPor ?? dto.usuario,
-      fechaEscaneo: new Date(),
-    });
-
-    await this.cuponService.incrementarEscaneos(dto.cupon);
+    // 5) Reserva ATÓMICA del canje en este local (evita doble canje
+    //    simultáneo) y luego el registro del histórico.
+    const localId = await this.localRaiz(dto.usuario);
+    const reservado = await this.cuponService.reclamarCanje(dto.cupon, localId);
+    if (!reservado) {
+      throw new BadRequestException('El usuario ya ha escaneado este cupón anteriormente');
+    }
+    let historico: any;
+    try {
+      historico = await this.historicoModel.create({
+        cupon: dto.cupon,
+        usuario: dto.usuario,
+        escaneadoPor: dto.escaneadoPor ?? dto.usuario,
+        fechaEscaneo: new Date(),
+      });
+    } catch (e) {
+      await this.cuponService.revertirCanje(dto.cupon, localId);
+      throw e;
+    }
 
     // 6) Notificaciones: cliente, scanner y dueño del local
     try {

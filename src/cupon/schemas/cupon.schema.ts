@@ -56,6 +56,14 @@ export class Cupon {
   ultimoScaneo?: Date;
 
   /**
+   * Locales (id del admin-local, texto) donde ya se canjeó. Permite registrar
+   * el canje con una sola operación atómica: dos escaneos simultáneos en el
+   * mismo local ya no cuentan doble.
+   */
+  @Prop({ type: [String], default: undefined })
+  localesCanjeados?: string[];
+
+  /**
    * Última vez que se le mandó al cliente el push "tu cuponera sigue sin
    * estrenar". El cron diario no vuelve a notificar antes de 14 días para
    * no spamear.

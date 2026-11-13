@@ -51,6 +51,22 @@ export class SolicitudCuponera extends Document {
   notaAdmin: string;
 
   // ── Regalo ──────────────────────────────────────────────────────────
+  /** Versión exacta (pagos con tarjeta). Si falta, se busca por nombre exacto. */
+  @Prop({ type: String, default: null })
+  versionId?: string | null;
+
+  /** Cupón emitido al aprobar (no regalo). Hace la emisión idempotente. */
+  @Prop({ type: String, default: null })
+  cuponId?: string | null;
+
+  /** Reclamo de la emisión en curso (evita dos cupones en paralelo). */
+  @Prop({ type: Date, default: null })
+  emitiendoCuponEn?: Date | null;
+
+  /** Error al emitir tras aprobar (solo solicitudes nuevas): permite reintentar. */
+  @Prop({ type: String, default: null })
+  emisionError?: string | null;
+
   @Prop({ type: Boolean, default: false, index: true })
   esRegalo: boolean;
 

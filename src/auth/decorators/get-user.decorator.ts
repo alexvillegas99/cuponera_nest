@@ -21,3 +21,8 @@ export const GetUser = createParamDecorator(
     return data ? user && user[data] : user;
   },
 );
+
+/** Como GetUser, pero devuelve null si la ruta se llamó sin sesión (JWT opcional). */
+export const UsuarioOpcional = createParamDecorator(
+  (_data: unknown, ctx: ExecutionContext) => ctx.switchToHttp().getRequest().user ?? null,
+);

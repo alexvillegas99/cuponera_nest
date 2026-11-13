@@ -1,3 +1,4 @@
+import { UsuarioOpcional } from 'src/auth/decorators/get-user.decorator';
 import { RateLimit } from 'src/common/security/rate-limit.guard';
 import { AuthUsuario } from 'src/auth/decorators/auth.decorator';
 // src/clientes/clientes.controller.ts
@@ -6,12 +7,15 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
+  Logger,
   Param,
   Patch,
   Post,
   Put,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import {
   ApiOperation,
@@ -22,6 +26,7 @@ import {
   ApiBody,
 } from '@nestjs/swagger';
 import { Auth } from 'src/auth/decorators/auth.decorator';
+import { OptionalJwtAuthGuard } from 'src/auth/guards/optional-jwt.guard';
 import { GetUser } from 'src/auth/decorators/get-user.decorator';
 import { ClientesService } from './clientes.service';
 import { PromotorService } from './promotor.service';
@@ -280,13 +285,28 @@ export class ClientesController {
     return this.service.findById(id);
   }
 
+  /**
+   * Antes era público: con el id de un cliente se podía cambiar su correo
+   * (y luego recuperar la clave con ese correo). Ahora: el propio cliente, o
+   * personal con permiso.
+   */
+  private assertClientePropio(user: any, id: string, permisoStaff: string) {
+    const propio = user?.kind === 'CLIENTE' && String(user._id) === String(id);
+    const staff = user?.kind !== 'CLIENTE' && (user?.permisos ?? []).includes(permisoStaff);
+    if (!propio && !staff) throw new ForbiddenException('No puedes acceder a este cliente');
+  }
+
   @Put('me/:id')
-  async updateMe(@Body() dto: any, @Param('id') id: string) {
+  @Auth()
+  async updateMe(@Body() dto: any, @Param('id') id: string, @GetUser() user: any) {
+    this.assertClientePropio(user, id, 'clientes.editar');
     return this.service.updateMe(id, dto);
   }
 
   @Get('perfil/:id')
-  async PerfilCliente(@Body() dto: any, @Param('id') id: string) {
+  @Auth()
+  async PerfilCliente(@Param('id') id: string, @GetUser() user: any) {
+    this.assertClientePropio(user, id, 'clientes.ver');
     return await this.service.getPerfil(id);
   }
 
@@ -298,7 +318,14 @@ export class ClientesController {
   }
 
   @Patch(':id/fcm-token')
-  async fcmToken(@Param('id') id: string, @Body('fcmToken') fcmToken: string) {
+  @UseGuards(OptionalJwtAuthGuard)
+  async fcmToken(@Param('id') id: string, @Body('fcmToken') fcmToken: string, @UsuarioOpcional() user: any) {
+    // Con sesión: solo el propio cliente. Sin sesión (app publicada): se
+    // acepta y se registra; en la Fase 5 se exigirá sesión.
+    if (user && !(user.kind === 'CLIENTE' && String(user._id) === String(id))) {
+      throw new ForbiddenException('No puedes cambiar este dispositivo');
+    }
+    if (!user) new Logger('ClientesController').warn(`[Fase5] fcm-token de cliente ${id} sin sesión`);
     await this.service.actualizarFcmToken(id, fcmToken);
     return { ok: true };
   }

@@ -1,5 +1,7 @@
+import { UsuarioOpcional } from 'src/auth/decorators/get-user.decorator';
 import { RateLimit } from 'src/common/security/rate-limit.guard';
-import { ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, Logger, UseGuards } from '@nestjs/common';
+import { OptionalJwtAuthGuard } from 'src/auth/guards/optional-jwt.guard';
 import { AuthUsuario } from 'src/auth/decorators/auth.decorator';
 import {
   Body,
@@ -520,7 +522,12 @@ export class UsuariosController {
   }
 
   @Patch(':id/fcm-token')
-  async fcmToken(@Param('id') id: string, @Body('fcmToken') fcmToken: string) {
+  @UseGuards(OptionalJwtAuthGuard)
+  async fcmToken(@Param('id') id: string, @Body('fcmToken') fcmToken: string, @UsuarioOpcional() user: any) {
+    if (user && !(user.kind !== 'CLIENTE' && String(user._id) === String(id))) {
+      throw new ForbiddenException('No puedes cambiar este dispositivo');
+    }
+    if (!user) new Logger('UsuariosController').warn(`[Fase5] fcm-token de usuario ${id} sin sesión`);
     await this.usuariosService.actualizarFcmToken(id, fcmToken);
     return { ok: true };
   }

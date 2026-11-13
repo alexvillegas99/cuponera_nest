@@ -146,6 +146,16 @@ export class VersionCuponeraService {
 
   // ... otros métodos existentes ...
 
+  /** Versión ACTIVA con ese nombre exacto (sin distinguir mayúsculas). */
+  async buscarActivaPorNombreExacto(nombre: string): Promise<any | null> {
+    const limpio = String(nombre ?? '').trim();
+    if (!limpio) return null;
+    const escapado = limpio.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return this.versionModel
+      .findOne({ nombre: { $regex: `^${escapado}$`, $options: 'i' }, estado: true })
+      .lean();
+  }
+
   async buscarPorNombre(nombre?: string, estado?: string): Promise<any[]> {
     // Construir filtro dinámico
     const filtro: any = {};

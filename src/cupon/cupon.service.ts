@@ -247,6 +247,31 @@ export class CuponService {
       throw new NotFoundException('Cupón no encontrado para eliminar');
   }
 
+  /**
+   * Reserva el canje del cupón en un local de forma ATÓMICA: suma el escaneo
+   * solo si ese local aún no está en `localesCanjeados`. Devuelve false si
+   * ya se había canjeado ahí (o en una petición simultánea).
+   */
+  async reclamarCanje(id: string, localId: string): Promise<boolean> {
+    const res = await this._cuponModel.updateOne(
+      { _id: id, localesCanjeados: { $ne: String(localId) } },
+      {
+        $addToSet: { localesCanjeados: String(localId) },
+        $inc: { numeroDeEscaneos: 1 },
+        $set: { ultimoScaneo: new Date() },
+      },
+    );
+    return res.modifiedCount === 1;
+  }
+
+  /** Deshace `reclamarCanje` si luego falla el registro del histórico. */
+  async revertirCanje(id: string, localId: string): Promise<void> {
+    await this._cuponModel.updateOne(
+      { _id: id, localesCanjeados: String(localId) },
+      { $pull: { localesCanjeados: String(localId) }, $inc: { numeroDeEscaneos: -1 } },
+    );
+  }
+
   async incrementarEscaneos(id: string): Promise<void> {
     const cupon = await this._cuponModel.findById(id).exec(); // Este es CuponDocument | null
     if (!cupon) throw new NotFoundException('Cupón no encontrado');
