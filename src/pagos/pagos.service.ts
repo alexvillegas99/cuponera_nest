@@ -234,15 +234,21 @@ export class PagosService {
    */
   async resolverRevision(pagoId: string, accion: 'aprobar' | 'rechazar', nota?: string) {
     const nuevo = accion === 'aprobar' ? 'APROBADO' : 'RECHAZADO';
+    // Se conserva el motivo original y se añade la decisión (y la nota).
+    const decision = `Resuelto: ${accion === 'aprobar' ? 'aprobado' : 'rechazado'}${nota ? ` — ${String(nota).slice(0, 300)}` : ''}`;
     const pago = await this.pagoModel.findOneAndUpdate(
       { _id: pagoId, status: 'REVISION' },
-      {
-        $set: {
-          status: nuevo,
-          revisionMotivo: `${nota ?? ''} [resuelto: ${accion}]`.trim(),
-          ...(accion === 'aprobar' ? { cuponEstado: 'PENDIENTE', cuponIntentoEn: null } : {}),
+      [
+        {
+          $set: {
+            status: nuevo,
+            revisionMotivo: {
+              $concat: [{ $ifNull: ['$revisionMotivo', ''] }, ' · ', decision],
+            },
+            ...(accion === 'aprobar' ? { cuponEstado: 'PENDIENTE', cuponIntentoEn: null } : {}),
+          },
         },
-      },
+      ] as any,
       { new: true },
     );
     if (!pago) throw new BadRequestException('El pago no está en revisión');
@@ -284,7 +290,10 @@ export class PagosService {
       statusCode: data.statusCode,
       transactionId: data.transactionId?.toString(),
       referencia: `PayPhone #${data.transactionId ?? providerId}`,
-      motivo: tipo === 'REVISION' ? `Monto cobrado ${data.amount} ≠ esperado ${Math.round(Number(pago.monto) * 100)} (centavos)` : undefined,
+      motivo:
+        tipo === 'REVISION'
+          ? `Cobrado $${(Number(data.amount) / 100).toFixed(2).replace('.', ',')}; se esperaba $${Number(pago.monto).toFixed(2).replace('.', ',')}`
+          : undefined,
     });
     return {
       aprobado: tipo === 'APROBADO',
@@ -798,7 +807,14 @@ export class PagosService {
       tipo: cuadra ? 'APROBADO' : 'REVISION',
       statusCode: cuadra ? 3 : 0,
       referencia: `PayPal #${orderId}`,
-      motivo: cuadra ? undefined : `Captura ${JSON.stringify(captura?.amount)} ref ${unidad?.reference_id} ≠ pago ${pago.monto} USD ${pago.clientTransactionId}`,
+      motivo: cuadra
+        ? undefined
+        : [
+            `Cobrado $${Number(captura?.amount?.value ?? 0).toFixed(2).replace('.', ',')} ${captura?.amount?.currency_code ?? ''}; se esperaba $${Number(pago.monto).toFixed(2).replace('.', ',')} USD`,
+            unidad?.reference_id && unidad.reference_id !== pago.clientTransactionId
+              ? `referencia ${unidad.reference_id} distinta`
+              : '',
+          ].filter(Boolean).join(' · '),
     });
     return { ok: true, status: cuadra ? 'APROBADO' : 'REVISION', resultado };
   }
