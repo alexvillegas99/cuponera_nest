@@ -726,6 +726,17 @@ export class UsuariosService {
    * Importante: el servidor corre en UTC, así que NO podemos usar
    * `new Date().getDay()` — daría un día corrido durante toda la noche EC.
    */
+  /** Hoy (fecha de Ecuador) como medianoche UTC, formato de `fechasExcluidas`. */
+  private _fechaHoyEcuadorUTC(): Date {
+    const ymd = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Guayaquil',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date());
+    return new Date(`${ymd}T00:00:00.000Z`);
+  }
+
   private _diaSemanaEnEcuador(d: Date = new Date()): string {
     const nombre = new Intl.DateTimeFormat('es-EC', {
       timeZone: 'America/Guayaquil',
@@ -882,6 +893,9 @@ export class UsuariosService {
             { 'detallePromocion.diasAplicables': hoy },
           ],
         },
+        // Fechas excluidas (feriados, cierres): la promo NO aplica hoy.
+        // Se guardan a medianoche UTC del día; se compara el día de Ecuador.
+        { 'detallePromocion.fechasExcluidas': { $ne: this._fechaHoyEcuadorUTC() } },
       ];
     }
 
