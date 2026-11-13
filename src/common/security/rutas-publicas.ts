@@ -4,10 +4,10 @@
  * algo de esta lista ya no existe o ya está protegido (lista desactualizada).
  *
  * Agregar una ruta pública debe ser una decisión consciente: ponla aquí con
- * su motivo. 'fase5' = pública solo por compatibilidad con la app vieja;
- * hay que cerrarla (sesión + ámbito por dueño) en la Fase 5.
+ * su motivo. 'compat' = abierta solo porque la app publicada la llama sin
+ * token: se cierra cuando la mayoría tenga la app nueva (que sí lo envía).
  */
-type Motivo = { tipo: 'diseño' | 'fase5'; por: string };
+type Motivo = { tipo: 'diseño' | 'compat'; por: string };
 
 export const RUTAS_PUBLICAS: Record<string, Motivo> = {
   // ── Sesión y registro ──
@@ -63,24 +63,10 @@ export const RUTAS_PUBLICAS: Record<string, Motivo> = {
   'POST /empresas/solicitudes': { tipo: 'diseño', por: 'Formulario público de afiliación' },
   'GET /empresas/solicitudes/check-email': { tipo: 'diseño', por: 'Validar correo de afiliación' },
 
-  // ── Pendientes Fase 5: cerrar con sesión + ámbito por dueño ──
-  'GET /cupones/:id/detalle': { tipo: 'fase5', por: 'Detalle de cuponera por id de cupón' },
-  'GET /cupones/agregar/:id': { tipo: 'fase5', por: 'Ver cupón físico antes de vincularlo' },
-  'GET /cupones/clientes/:clienteId/cuponeras': { tipo: 'fase5', por: 'Cuponeras de un cliente por id' },
-  'GET /cupones/clientes/:clienteId/cuponeras-paginado': { tipo: 'fase5', por: 'Cuponeras de un cliente por id' },
-  'GET /cupones/clientes/:clienteId/disponibles/:usuarioId': { tipo: 'fase5', por: 'Cupones de un cliente por id' },
-  'GET /cupones/clientes/:clienteId/locales-disponibles': { tipo: 'fase5', por: 'Locales de un cliente por id' },
-  'GET /cupones/clientes/buscar/:clienteId': { tipo: 'fase5', por: 'Cupones de un cliente por id' },
-  'GET /clientes/:clienteId/favorites/ids': { tipo: 'fase5', por: 'Favoritos de un cliente por id' },
-  'PUT /clientes/:clienteId/favorites/:negocioId': { tipo: 'fase5', por: 'Marcar favorito de un cliente por id' },
-  'POST /comentarios': { tipo: 'fase5', por: 'Opinar (tomar autor de la sesión)' },
-  'GET /comentarios/eligibilidad': { tipo: 'fase5', por: 'Puede opinar' },
-  'GET /comentarios/mio/:usuarioId': { tipo: 'fase5', por: 'Opinión propia por id' },
-  'PUT /comentarios/mio/:usuarioId': { tipo: 'fase5', por: 'Editar opinión por id' },
-  'DELETE /comentarios/mio/:usuarioId': { tipo: 'fase5', por: 'Borrar opinión por id' },
-  'POST /compartidos': { tipo: 'fase5', por: 'Registrar compartido' },
-  'GET /compartidos/usuario/:usuarioId/resumen': { tipo: 'fase5', por: 'Resumen de compartidos' },
-  'GET /usuarios/:id': { tipo: 'fase5', por: 'Datos de un usuario (sin clave)' },
-  'GET /usuarios/buscar/email/:email': { tipo: 'fase5', por: 'Permite enumerar correos del personal' },
-  'GET /mail': { tipo: 'fase5', por: 'Ruta de prueba de correo: retirar' },
+  // ── Recuperación de cuenta (antes de iniciar sesión) ──
+  'GET /usuarios/buscar/email/:email': { tipo: 'diseño', por: 'Recuperar cuenta: solo responde sí/no; límite por IP' },
+
+  // ── Compatibilidad: la app publicada (1.1.14) llama sin token ──
+  'PATCH /clientes/:id/fcm-token': { tipo: 'compat', por: 'Con token: solo el propio. Sin token: se acepta y se registra. Exigir sesión al retirar la app vieja' },
+  'PATCH /usuarios/:id/fcm-token': { tipo: 'compat', por: 'Con token: solo el propio. Sin token: se acepta y se registra. Exigir sesión al retirar la app vieja' },
 };

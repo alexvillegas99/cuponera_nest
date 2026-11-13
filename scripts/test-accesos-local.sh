@@ -155,8 +155,7 @@ if [[ -n "$RP" ]]; then
   # marketing
   check "marketing: ver cupones"                                     200 "$API/cupones" -H "$(H $MKT)"
   check "marketing: canjear un cupón"                                403 -X POST "$API/historico" -H "$(H $MKT)" -H "$J" -d "$CANJE"
-  # GET /usuarios acepta establecimientos.ver (la lista de locales sale de ahí): Fase 5 acotarlo.
-  check "marketing: listar locales (vía /usuarios)"                  200 "$API/usuarios" -H "$(H $MKT)"
+  check "marketing: listar todos los usuarios del panel"             403 "$API/usuarios" -H "$(H $MKT)"
   # atención
   check "atención: ver cupones"                                      200 "$API/cupones" -H "$(H $ATE)"
   check "atención: ver clientes"                                     200 "$API/clientes/admin?page=1&limit=1" -H "$(H $ATE)"
@@ -183,6 +182,35 @@ echo "── Asignar cuponera física"
 CUPLIBRE=$($MONGO --eval "db.cupons.findOne({})._id.toString()")
 check "Asignar cupón sin sesión"                                     401 -X POST "$API/cupones/clientes/$CLI_ID/cupones/$CUPLIBRE/asignar"
 check "Cliente asigna un cupón a OTRO cliente"                       403 -X POST "$API/cupones/clientes/$OTRO_ID/cupones/$CUPLIBRE/asignar" -H "$(H $CLI)"
+
+echo "── Fase 5: datos por id de cliente / usuario"
+LOCAL_DEMO=$($MONGO --eval "db.usuarios.findOne({rol:'admin-local',email:{\$ne:'$SEED_LOCAL_EMAIL'}})._id.toString()")
+MI_CUPON=$($MONGO --eval "db.cupons.findOne({\$or:[{cliente:ObjectId('$CLI_ID')},{cliente:'$CLI_ID'}]})._id.toString()")
+for ruta in "cupones/clientes/$CLI_ID/cuponeras" "cupones/clientes/buscar/$CLI_ID" "cupones/clientes/$CLI_ID/cuponeras-paginado" "cupones/clientes/$CLI_ID/locales-disponibles" "clientes/$CLI_ID/favorites/ids"; do
+  check "Sin sesión: /$ruta"                                         401 "$API/$ruta"
+  check "Cliente, lo SUYO: /$ruta"                                   200 "$API/$ruta" -H "$(H $CLI)"
+done
+check "Cliente, cuponeras de OTRO"                                   403 "$API/cupones/clientes/$OTRO_ID/cuponeras" -H "$(H $CLI)"
+check "Cliente, favoritos de OTRO"                                   403 "$API/clientes/$OTRO_ID/favorites/ids" -H "$(H $CLI)"
+check "Cliente marca favorito a OTRO"                                403 -X PUT "$API/clientes/$OTRO_ID/favorites/$LOCAL_DEMO" -H "$(H $CLI)"
+check "Cliente, disponibles de OTRO en un local"                     403 "$API/cupones/clientes/$OTRO_ID/disponibles/$LOCAL_DEMO" -H "$(H $CLI)"
+check "Cliente, detalle de SU cupón"                                 200 "$API/cupones/$MI_CUPON/detalle" -H "$(H $CLI)"
+check "Admin, cuponeras de un cliente"                               200 "$API/cupones/clientes/$CLI_ID/cuponeras" -H "$(H $ADM)"
+check "Admin local, cuponeras de un cliente"                         403 "$API/cupones/clientes/$CLI_ID/cuponeras" -H "$(H $LOC)"
+check "Opinar sin sesión"                                            401 -X POST "$API/comentarios" -H "$J" -d '{}'
+check "Elegibilidad para opinar (cliente)"                           200 "$API/comentarios/eligibilidad?usuarioId=$LOCAL_DEMO&clienteId=$OTRO_ID" -H "$(H $CLI)"
+check "Mi opinión sin sesión"                                        401 "$API/comentarios/mio/$LOCAL_DEMO?clienteId=$CLI_ID"
+check "Resumen de compartidos (cliente)"                             403 "$API/compartidos/usuario/$LOCAL_DEMO/resumen" -H "$(H $CLI)"
+check "Resumen de compartidos de OTRO local (admin local)"           403 "$API/compartidos/usuario/$LOCAL_DEMO/resumen" -H "$(H $LOC)"
+check "Resumen de compartidos (admin)"                               200 "$API/compartidos/usuario/$LOCAL_DEMO/resumen" -H "$(H $ADM)"
+check "GET /usuarios/:id sin sesión"                                 401 "$API/usuarios/$LOCAL_DEMO"
+check "Admin local ve OTRO local por id"                             403 "$API/usuarios/$LOCAL_DEMO" -H "$(H $LOC)"
+check "Admin local se ve a sí mismo"                                 200 "$API/usuarios/$LOCAL_ID" -H "$(H $LOC)"
+check "Cliente pide un cupón por id (solo personal)"                 403 "$API/cupones/$MI_CUPON" -H "$(H $CLI)"
+check "Detalle de un cupón que no existe"                           404 "$API/cupones/000000000000000000000000/detalle" -H "$(H $CLI)"
+check "Opinar sin haber usado una promo en el local"                403 -X POST "$API/comentarios" -H "$(H $CLI)" -H "$J" -d "{\"usuarioId\":\"$LOCAL_DEMO\",\"texto\":\"x\",\"calificacion\":5}"
+check "GET /mail sin sesión"                                         401 "$API/mail"
+check "Buscar correo (recuperación, público)"                        200 "$API/usuarios/buscar/email/nadie@enjoy.local"
 
 $MONGO --eval "db.versioncuponeras.deleteMany({nombre:/HACK/}); db.rols.deleteMany({slug:'x'}); db.usuarios.deleteMany({email:/^(staff|x)-$RUN@/}); db.otps.deleteMany({email:/-$RUN@enjoy.local/})" >/dev/null
 echo; echo "Resultado: $pass OK, $fail fallos"

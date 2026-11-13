@@ -1,3 +1,6 @@
+import { ForbiddenException } from '@nestjs/common';
+import { assertClienteOPermiso, clienteDeSesion, esCliente, tienePermiso } from 'src/common/security/propiedad';
+import { GetUser } from 'src/auth/decorators';
 import {
   Body,
   Controller,
@@ -25,6 +28,7 @@ export class ComentarioController {
   constructor(private readonly comentariosService: ComentarioService) {}
 
   @Post()
+  @Auth()
   @ApiOperation({ summary: 'Crear comentario y actualizar promedio del usuario' })
   @ApiBody({
     type: Object,
@@ -55,7 +59,11 @@ export class ComentarioController {
       },
     },
   })
-crear(@Body() dto: { usuarioId: string; clienteId: string; texto: string; calificacion: number; }) {
+async crear(@Body() dto: { usuarioId: string; clienteId: string; texto: string; calificacion: number; }, @GetUser() user: any) {
+  // El autor es quien tiene la sesión (no el clienteId del body).
+  dto = { ...dto, clienteId: clienteDeSesion(user) };
+  const { elegible } = await this.comentariosService.elegibilidad(dto.usuarioId, dto.clienteId);
+  if (!elegible) throw new ForbiddenException('Podrás opinar después de usar una promoción en este local');
   return this.comentariosService.crearComentario(dto);
 }
 
@@ -140,26 +148,31 @@ actualizarPorId(
 // ─────────────────────────────────────────────────────────────
 // NUEVO: Elegibilidad para comentar (por query)
 @Get('eligibilidad')
+@Auth()
 @ApiOperation({ summary: 'Verifica si el cliente puede comentar en el usuario/local' })
 @ApiQuery({ name: 'usuarioId', required: true, description: 'ID del usuario/local' })
 @ApiQuery({ name: 'clienteId', required: true, description: 'ID del cliente (autor)' })
-elegibilidad(@Query('usuarioId') usuarioId: string, @Query('clienteId') clienteId: string) {
+elegibilidad(@Query('usuarioId') usuarioId: string, @Query('clienteId') _clienteId: string, @GetUser() user: any) {
+  const clienteId = clienteDeSesion(user);
   return this.comentariosService.elegibilidad(usuarioId, clienteId);
 }
 
 // ─────────────────────────────────────────────────────────────
 // NUEVO: Obtener MI comentario (clienteId por query)
 @Get('mio/:usuarioId')
+@Auth()
 @ApiOperation({ summary: 'Obtiene tu propio comentario en un usuario/local' })
 @ApiParam({ name: 'usuarioId', description: 'ID del usuario/local' })
 @ApiQuery({ name: 'clienteId', required: true, description: 'ID del cliente (autor)' })
-obtenerMiComentario(@Param('usuarioId') usuarioId: string, @Query('clienteId') clienteId: string) {
+obtenerMiComentario(@Param('usuarioId') usuarioId: string, @Query('clienteId') _clienteId: string, @GetUser() user: any) {
+  const clienteId = clienteDeSesion(user);
   return this.comentariosService.obtenerMiComentario(usuarioId, clienteId);
 }
 
 // ─────────────────────────────────────────────────────────────
 // NUEVO: Crear/editar MI comentario (clienteId en el body)
 @Put('mio/:usuarioId')
+@Auth()
 @ApiOperation({ summary: 'Crea o actualiza tu comentario (1 por local)' })
 @ApiParam({ name: 'usuarioId', description: 'ID del usuario/local' })
 @ApiBody({
@@ -174,18 +187,22 @@ obtenerMiComentario(@Param('usuarioId') usuarioId: string, @Query('clienteId') c
 upsertMiComentario(
   @Param('usuarioId') usuarioId: string,
   @Body() body: { clienteId: string; texto?: string; calificacion?: number },
+  @GetUser() user: any,
 ) {
-  const { clienteId, ...rest } = body;
+  const { clienteId: _ignorado, ...rest } = body;
+  const clienteId = clienteDeSesion(user);
   return this.comentariosService.upsertMiComentario(usuarioId, clienteId, rest);
 }
 
 // ─────────────────────────────────────────────────────────────
 // NUEVO: Eliminar MI comentario (clienteId por query)
 @Delete('mio/:usuarioId')
+@Auth()
 @ApiOperation({ summary: 'Elimina tu comentario en un usuario/local' })
 @ApiParam({ name: 'usuarioId', description: 'ID del usuario/local' })
 @ApiQuery({ name: 'clienteId', required: true, description: 'ID del cliente (autor)' })
-eliminarMiComentario(@Param('usuarioId') usuarioId: string, @Query('clienteId') clienteId: string) {
+eliminarMiComentario(@Param('usuarioId') usuarioId: string, @Query('clienteId') _clienteId: string, @GetUser() user: any) {
+  const clienteId = clienteDeSesion(user);
   return this.comentariosService.eliminarMiComentario(usuarioId, clienteId);
 }
 

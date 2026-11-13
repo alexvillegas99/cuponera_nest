@@ -1,3 +1,4 @@
+import { tienePermiso } from 'src/common/security/propiedad';
 import { UsuarioOpcional } from 'src/auth/decorators/get-user.decorator';
 import { RateLimit } from 'src/common/security/rate-limit.guard';
 import { ForbiddenException, Logger, UseGuards } from '@nestjs/common';
@@ -254,7 +255,9 @@ export class UsuariosController {
   }
 
   @Get()
-  @AuthUsuario('usuarios.ver', 'establecimientos.ver')
+  // Lista TODOS los usuarios del panel: solo quien administra usuarios.
+  // (Los locales se listan con GET /usuarios/establecimientos.)
+  @AuthUsuario('usuarios.ver')
   @ApiOperation({ summary: 'Listar usuarios' })
   @ApiResponse({
     status: 200,
@@ -300,13 +303,27 @@ export class UsuariosController {
   }
 
   @Get(':id')
+  @AuthUsuario()
   @ApiOperation({ summary: 'Obtener usuario por ID' })
   @ApiParam({ name: 'id', required: true })
   @ApiResponse({
     status: 200,
     description: 'Usuario con nombres de ciudades y categorías',
   })
-  findById(@Param('id') id: string) {
+  async findById(@Param('id') idParam: string, @GetUser() user: any) {
+    const id = String(idParam ?? '').toLowerCase();
+    // Personal global; o el propio usuario, su local, o su staff.
+    if (!tienePermiso(user, 'usuarios.ver', 'establecimientos.ver')) {
+      const yo = String(user?._id);
+      const miLocal = String(user?.rol) === 'staff' && user?.usuarioCreacion ? String(user.usuarioCreacion) : yo;
+      if (id !== yo && id !== miLocal) {
+        const objetivo: any = await this.usuariosService.findById(id).catch(() => null);
+        const suLocal = String(objetivo?.usuarioCreacion?._id ?? objetivo?.usuarioCreacion ?? '');
+        if (String(user?.rol) !== 'admin-local' || suLocal !== yo) {
+          throw new ForbiddenException('No puedes ver este usuario');
+        }
+      }
+    }
     return this.usuariosService.findById(id);
   }
 
@@ -513,6 +530,7 @@ export class UsuariosController {
   }
 
   @Get('buscar/email/:email')
+  @RateLimit(20, 15 * 60_000)
   async buscarPorEmail(@Param('email') email: string) {
     return this.usuariosService.buscarPorEmail(email);
   }
@@ -528,6 +546,7 @@ export class UsuariosController {
 
   @Patch(':id/fcm-token')
   @UseGuards(OptionalJwtAuthGuard)
+  @RateLimit(60, 15 * 60_000) // por cuenta (:id)
   async fcmToken(@Param('id') id: string, @Body('fcmToken') fcmToken: string, @UsuarioOpcional() user: any) {
     if (user && !(user.kind !== 'CLIENTE' && String(user._id) === String(id))) {
       throw new ForbiddenException('No puedes cambiar este dispositivo');

@@ -30,7 +30,16 @@ export class RateLimitGuard implements CanActivate {
     // Se limita por CUENTA (email del cuerpo) cuando existe: la IP se puede
     // falsificar con X-Forwarded-For, el email objetivo no.
     const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
-    const sujeto = email ? `email:${email}` : `ip:${req.ip || 'desconocida'}`;
+    // Orden: cuenta objetivo (email) > sesión > id de la ruta > IP. La IP es
+    // el último recurso: se falsifica con X-Forwarded-For y la comparten
+    // muchos usuarios detrás del mismo NAT de la operadora.
+    const sujeto = email
+      ? `email:${email}`
+      : req.user?._id
+        ? `user:${req.user._id}`
+        : req.params?.id
+          ? `id:${req.params.id}`
+          : `ip:${req.ip || 'desconocida'}`;
     const clave = `${sujeto}|${req.method}|${req.route?.path ?? req.url}`;
     const ahora = Date.now();
     const recientes = (hits.get(clave) ?? []).filter((t) => ahora - t < regla.ventanaMs);

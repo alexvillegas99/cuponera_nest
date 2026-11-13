@@ -1,3 +1,4 @@
+import { assertClienteOPermiso, clienteDeSesion, esCliente, tienePermiso } from 'src/common/security/propiedad';
 import { GetUser } from 'src/auth/decorators';
 import { AuthUsuario } from 'src/auth/decorators/auth.decorator';
 import {
@@ -10,6 +11,7 @@ import {
   Patch,
   Query,
   ForbiddenException,
+  NotFoundException,
 } from '@nestjs/common';
 import { CuponService } from './cupon.service';
 import { CreateCuponDto } from './dto/create-cupon.dto';
@@ -65,7 +67,7 @@ async conteoEstados() {
 
 
   @Get(':id')
-  @Auth()
+  @AuthUsuario('cupones.ver')
   @ApiOperation({ summary: 'Buscar cupón por ID' })
   @ApiResponse({ status: 200, description: 'Cupón encontrado' })
   @ApiResponse({ status: 404, description: 'Cupón no encontrado' })
@@ -74,11 +76,16 @@ async conteoEstados() {
     return this.cuponService.findById(id);
   }
  @Get('agregar/:id')
+  @Auth()
   @ApiOperation({ summary: 'Buscar cupón por ID' })
   @ApiResponse({ status: 200, description: 'Cupón encontrado' })
   @ApiResponse({ status: 404, description: 'Cupón no encontrado' })
   @ApiParam({ name: 'id', description: 'ID del cupón (MongoID)' })
-  findAgregarUsuarioResponsable(@Param('id') id: string) {
+  findAgregarUsuarioResponsable(@Param('id') id: string, @GetUser() user: any) {
+    // Ver un cupón físico antes de vincularlo: cualquier cliente con sesión.
+    if (!esCliente(user) && !tienePermiso(user, 'cupones.ver')) {
+      throw new ForbiddenException('No tienes permisos para realizar esta acción');
+    }
     return this.cuponService.findAgregarUsuarioCliente(id);
   }
 
@@ -170,6 +177,7 @@ async conteoEstados() {
   }
 
   @Get('clientes/buscar/:clienteId')
+  @Auth()
   @ApiOperation({
     summary: 'Listar cuponeras de un cliente (modo compacto)',
     description:
@@ -193,9 +201,11 @@ async conteoEstados() {
     description: 'Parámetros inválidos (clienteId inválido)',
   })
   async listar(
+    @GetUser() user: any,
     @Param('clienteId') clienteId: string,
     @Query('soloActivas') soloActivas = 'true',
   ) {
+    assertClienteOPermiso(user, clienteId, 'cupones.ver');
     const list = await this.cuponService.obtenerCuponerasPorCliente(
       clienteId,
       soloActivas !== 'false',
@@ -204,36 +214,44 @@ async conteoEstados() {
   }
 
   @Get('clientes/:clienteId/disponibles/:usuarioId')
+  @Auth()
   @ApiOperation({
     summary: 'Cupones disponibles de un cliente para canjear en un local',
   })
   findDisponiblesParaLocal(
     @Param('clienteId') clienteId: string,
     @Param('usuarioId') usuarioId: string,
+    @GetUser() user: any,
   ) {
+    assertClienteOPermiso(user, clienteId, 'cupones.ver');
     return this.cuponService.findDisponiblesParaLocal(clienteId, usuarioId);
   }
 
   @Get('clientes/:clienteId/locales-disponibles')
+  @Auth()
   @ApiOperation({
     summary:
       'Ids de locales donde el cliente tiene cupón disponible para canjear',
   })
-  findLocalesDisponibles(@Param('clienteId') clienteId: string) {
+  findLocalesDisponibles(@Param('clienteId') clienteId: string, @GetUser() user: any) {
+    assertClienteOPermiso(user, clienteId, 'cupones.ver');
     return this.cuponService.findLocalesDisponibles(clienteId);
   }
 
   @Get('clientes/:clienteId/cuponeras-paginado')
+  @Auth()
   @ApiOperation({
     summary: 'Cuponeras del cliente (paginado, aditivo)',
   })
   listarCuponerasPaginado(
+    @GetUser() user: any,
     @Param('clienteId') clienteId: string,
     @Query('soloActivas') soloActivas = 'true',
     @Query('q') q?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
+    assertClienteOPermiso(user, clienteId, 'cupones.ver');
     return this.cuponService.obtenerCuponerasPorClientePaginado({
       clienteId,
       soloActivas: soloActivas !== 'false',
@@ -292,6 +310,7 @@ async conteoEstados() {
   }
 
   @Get('clientes/:clienteId/cuponeras')
+  @Auth()
   @ApiOperation({
     summary: 'Listar cupones asignados a un cliente',
     description:
@@ -307,12 +326,25 @@ async conteoEstados() {
     status: 400,
     description: 'Parámetros inválidos (clienteId inválido)',
   })
-  async listarPorCliente(@Param('clienteId') clienteId: string) {
+  async listarPorCliente(@Param('clienteId') clienteId: string, @GetUser() user: any) {
+    assertClienteOPermiso(user, clienteId, 'cupones.ver');
     return this.cuponService.obtenerCuponesPorCliente(clienteId);
   }
 
   @Get(':id/detalle')
-async getDetalle(@Param('id') id: string) {
+  @Auth()
+async getDetalle(@Param('id') id: string, @GetUser() user: any) {
+  // El cliente solo ve el detalle de SUS cupones.
+  if (esCliente(user)) {
+    const cupon: any = await this.cuponService.findById(id).catch(() => null);
+    if (!cupon) throw new NotFoundException('Cupón no encontrado');
+    const dueno = cupon?.cliente?._id ?? cupon?.cliente;
+    if (String(dueno) !== String(user._id)) {
+      throw new ForbiddenException('Este cupón no es tuyo');
+    }
+  } else if (!tienePermiso(user, 'cupones.ver')) {
+    throw new ForbiddenException('No tienes permisos para realizar esta acción');
+  }
   return this.cuponService.obtenerDetalleCupon(id);
 }
 

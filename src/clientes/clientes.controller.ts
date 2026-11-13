@@ -319,6 +319,7 @@ export class ClientesController {
 
   @Patch(':id/fcm-token')
   @UseGuards(OptionalJwtAuthGuard)
+  @RateLimit(60, 15 * 60_000) // por cuenta (:id)
   async fcmToken(@Param('id') id: string, @Body('fcmToken') fcmToken: string, @UsuarioOpcional() user: any) {
     // Con sesión: solo el propio cliente. Sin sesión (app publicada): se
     // acepta y se registra; en la Fase 5 se exigirá sesión.

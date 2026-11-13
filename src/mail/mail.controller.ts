@@ -1,3 +1,4 @@
+import { AuthUsuario } from 'src/auth/decorators/auth.decorator';
 import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
 import { MailService } from './mail.service';
 import { CreateMailDto } from './dto/create-mail.dto';
@@ -11,6 +12,7 @@ export class MailController {
 
 
   @Get()
+  @AuthUsuario('configuracion.editar')
   async findAll() {
  /*    const html = this.mailService.getTemplate('otp.html', {
       nombre: 'Carlos',

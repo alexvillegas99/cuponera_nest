@@ -205,7 +205,8 @@ export class CuponService {
   async findById(id: string): Promise<Cupon> {
     const cupon = await this._cuponModel
       .findById(id)
-      .populate('version usuarioActivador')
+      .populate('version')
+      .populate({ path: 'usuarioActivador', select: 'nombre' })
       .lean()
       .exec();
     if (!cupon) throw new NotFoundException('Cupón no encontrado');

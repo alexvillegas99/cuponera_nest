@@ -1,14 +1,18 @@
 import * as path from 'path';
-import { escanearRutas, permisosUsados } from './rutas-scan';
+import { escanearRutas, permisosEnCodigo } from './rutas-scan';
 import { RUTAS_PUBLICAS } from './rutas-publicas';
 import { TODOS_LOS_PERMISOS } from '../../roles/constants/permisos.constant';
 
 const SRC = path.resolve(__dirname, '../..');
-const rutas = escanearRutas(SRC);
+let rutas: ReturnType<typeof escanearRutas>;
 
-describe('Rutas protegidas', () => {
+beforeAll(() => {
+  rutas = escanearRutas(SRC);
+}, 60_000);
+
+describe('Rutas protegidas (metadatos reales de Nest)', () => {
   it('encuentra las rutas de los controladores', () => {
-    expect(rutas.length).toBeGreaterThan(100);
+    expect(rutas.length).toBeGreaterThan(200);
   });
 
   it('toda ruta sin sesión está en la lista de rutas públicas', () => {
@@ -28,9 +32,17 @@ describe('Rutas protegidas', () => {
   });
 });
 
-describe('Permisos citados en el código', () => {
-  it('existen en el catálogo (sin erratas)', () => {
-    const malos = permisosUsados(SRC)
+describe('Permisos', () => {
+  it('los de los decoradores existen en el catálogo (sin erratas)', () => {
+    const malos = rutas
+      .flatMap((r) => r.permisos.map((p) => ({ p, r })))
+      .filter(({ p }) => !TODOS_LOS_PERMISOS.includes(p))
+      .map(({ p, r }) => `${p}  (${r.clave})`);
+    expect(malos).toEqual([]);
+  });
+
+  it('los citados en el código existen en el catálogo', () => {
+    const malos = permisosEnCodigo(SRC)
       .filter((u) => !TODOS_LOS_PERMISOS.includes(u.permiso))
       .map((u) => `${u.permiso}  (${u.archivo})`);
     expect(malos).toEqual([]);

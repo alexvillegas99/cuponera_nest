@@ -462,6 +462,7 @@ export class UsuariosService {
   async findById(id: string): Promise<any> {
     const usuario = await this.usuarioModel
       .findById(id)
+      .select('-clave')
       .populate({
         path: 'ciudades',
         select: 'nombre provincia',

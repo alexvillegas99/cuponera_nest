@@ -19,18 +19,19 @@
 import 'dotenv/config';
 import * as mongoose from 'mongoose';
 import { TODOS_LOS_PERMISOS } from '../src/roles/constants/permisos.constant';
-import { ROLES_OBSOLETOS, ROLES_PREDEFINIDOS } from '../src/roles/constants/roles-predefinidos';
+import { ROLES_OBSOLETOS } from '../src/roles/constants/roles-predefinidos';
+import { aplicarSync, leerEstado, planificarSync } from '../src/roles/sync-roles';
 
 const APLICAR = process.argv.includes('--aplicar');
 const PROD_OK = process.argv.includes('--confirmo-produccion');
+const FORZAR = process.argv.includes('--forzar');
 const url = process.env.MONGO_URL || '';
-const esLocal = /^mongodb:\/\/(localhost|127\.0\.0\.1)/.test(url);
+const esLocal = /^mongodb:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(url);
 if (!esLocal && APLICAR && !PROD_OK) {
   console.error('MONGO_URL no es local. Para aplicar en producción añade --confirmo-produccion (con respaldo previo).');
   process.exit(1);
 }
 
-const ROLES_FASE3 = ROLES_PREDEFINIDOS;
 const OBSOLETOS = ROLES_OBSOLETOS;
 
 async function main() {
@@ -41,44 +42,53 @@ async function main() {
   const modo = APLICAR ? 'APLICANDO' : 'DRY-RUN (no cambia nada)';
   console.log(`\n== Fase 3 — roles · ${modo} · base: ${db.databaseName} (${esLocal ? 'local' : 'REMOTA'})\n`);
 
-  // 1) Roles
-  for (const r of ROLES_FASE3) {
-    const actual: any = await rols.findOne({ slug: r.slug });
-    const validos = r.permisos.filter((p) => TODOS_LOS_PERMISOS.includes(p));
-    if (!actual) {
-      console.log(`+ crear ${r.slug.padEnd(12)} (${validos.length} permisos)`);
-      if (APLICAR) {
-        await rols.insertOne({
-          slug: r.slug, nombre: r.nombre, descripcion: r.descripcion, esSistema: true,
-          permisos: validos, createdAt: new Date(), updatedAt: new Date(),
-        });
-      }
-    } else {
-      const nuevos = validos.filter((p) => !(actual.permisos ?? []).includes(p));
-      console.log(`~ ${r.slug.padEnd(12)} suma ${nuevos.length ? nuevos.join(', ') : '—'}`);
-      if (APLICAR) {
-        await rols.updateOne(
-          { _id: actual._id },
-          { $addToSet: { permisos: { $each: validos } }, $set: { nombre: r.nombre, descripcion: r.descripcion, esSistema: true, updatedAt: new Date() } },
-        );
-      }
-    }
+  // 1) Roles: misma lógica que el arranque (src/roles/sync-roles.ts)
+  const { actuales, creadosAntes } = await leerEstado(db);
+  const plan = planificarSync(actuales, creadosAntes);
+  for (const a of plan) {
+    if (a.tipo === 'crear') console.log(`+ crear ${a.rol.slug.padEnd(12)} (${a.permisos.length} permisos)`);
+    else if (a.tipo === 'sumar') console.log(`~ ${a.slug.padEnd(12)} suma ${a.permisos.length ? a.permisos.join(', ') : '—'}`);
+    else console.log(`! ${(a as any).slug.padEnd(12)} ${(a as any).motivo}`);
   }
+  if (APLICAR) await aplicarSync(db, plan, () => undefined);
 
-  // 2) Obsoletos
+  // 2) Obsoletos: sin subir privilegios (si el destino da más, hay que --forzar)
+  let bloqueado = false;
   for (const [slug, destino] of Object.entries(OBSOLETOS)) {
     const viejo: any = await rols.findOne({ slug });
-    const nUsuarios = await usuarios.countDocuments({ $or: [{ rol: slug }, ...(viejo ? [{ rolRef: viejo._id }] : [])] });
+    const filtro = { $or: [{ rol: slug }, ...(viejo ? [{ rolRef: viejo._id }] : [])] };
+    const nUsuarios = await usuarios.countDocuments(filtro);
     if (!viejo && !nUsuarios) continue;
-    console.log(`- obsoleto ${slug}: ${nUsuarios} usuario(s) → ${destino}${viejo ? ', se elimina el rol' : ''}`);
+    const dest: any = await rols.findOne({ slug: destino });
+    // Permisos que tendrá el destino según el plan (también en dry-run, aunque aún no exista).
+    const permisosDestino = (slugX: string, actual: any) => {
+      const a: any = plan.find((x: any) => (x.rol?.slug ?? x.slug) === slugX && (x.tipo === 'crear' || x.tipo === 'sumar'));
+      return [...new Set([...(actual?.permisos ?? []), ...(a?.permisos ?? [])])];
+    };
+    const viejos: string[] = viejo?.permisos ?? [];
+    const ganan = permisosDestino(destino, dest).filter((p: string) => !viejos.includes(p));
+    // "De un local" = su usuarioCreacion es un admin-local (el admin también
+    // rellena usuarioCreacion al crear personal global, así que no basta con != null).
+    const idsLocales = (await usuarios.find({ rol: 'admin-local' }, { projection: { _id: 1 } }).toArray()).flatMap((u: any) => [u._id, String(u._id)]);
+    const filtroLocal = { ...filtro, usuarioCreacion: { $in: idsLocales } };
+    const filtroGlobal = { ...filtro, usuarioCreacion: { $nin: idsLocales } };
+    const deLocal = await usuarios.countDocuments(filtroLocal);
+    const staffDef: any = await rols.findOne({ slug: 'staff' });
+    const ganaStaff = deLocal ? permisosDestino('staff', staffDef).filter((p: string) => !viejos.includes(p)) : [];
+    console.log(`- obsoleto ${slug}: ${nUsuarios} usuario(s) → ${destino}${deLocal ? ` (${deLocal} de un local → staff)` : ''}${viejo ? ', se elimina el rol' : ''}`);
+    if (ganan.length) console.log(`    ganarían (${destino}): ${ganan.join(', ')}`);
+    if (ganaStaff.length) console.log(`    ganarían (staff): ${ganaStaff.join(', ')}`);
+    if ((ganan.length || ganaStaff.length) && !FORZAR) { bloqueado = true; continue; }
     if (APLICAR) {
-      const dest: any = await rols.findOne({ slug: destino });
-      await usuarios.updateMany(
-        { $or: [{ rol: slug }, ...(viejo ? [{ rolRef: viejo._id }] : [])] },
-        { $set: { rol: destino, rolRef: dest?._id ?? null } },
-      );
+      const staff: any = await rols.findOne({ slug: 'staff' });
+      const destAhora: any = await rols.findOne({ slug: destino });
+      await usuarios.updateMany(filtroLocal, { $set: { rol: 'staff', rolRef: staff?._id ?? null } });
+      await usuarios.updateMany(filtroGlobal, { $set: { rol: destino, rolRef: destAhora?._id ?? null } });
       if (viejo) await rols.deleteOne({ _id: viejo._id });
     }
+  }
+  if (bloqueado) {
+    console.log('\n! Algún rol obsoleto pasaría a un rol con MÁS permisos. Revisa la lista y usa --forzar si es lo correcto.');
   }
 
   // 3) rolRef coherente con el slug

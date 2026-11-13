@@ -1,4 +1,4 @@
-import { ROLES_PREDEFINIDOS } from './constants/roles-predefinidos';
+import { aplicarSync, leerEstado, planificarSync } from './sync-roles';
 import {
   BadRequestException,
   Injectable,
@@ -29,27 +29,17 @@ export class RolesService implements OnModuleInit {
   }
 
   /**
-   * Sincroniza los roles predefinidos (constants/roles-predefinidos.ts):
-   * crea los que falten y SUMA permisos con $addToSet — nunca quita lo que el
-   * admin personalizó desde /roles. Así una función nueva llega a los roles
-   * que la necesitan con solo agregar su permiso a la constante.
-   * La reasignación de roles obsoletos la hace el script de la Fase 3.
+   * Sincroniza los roles predefinidos (ver src/roles/sync-roles.ts): crea los
+   * que nunca existieron y entrega SOLO los permisos nuevos de la constante.
+   * Lo que el admin quitó o borró desde /roles no vuelve.
    */
   private async _sincronizarRolesPredefinidos() {
-    for (const r of ROLES_PREDEFINIDOS) {
-      const permisos = r.permisos.filter((p) => TODOS_LOS_PERMISOS.includes(p));
-      try {
-        await this.rolModel.updateOne(
-          { slug: r.slug },
-          {
-            $addToSet: { permisos: { $each: permisos } },
-            $setOnInsert: { slug: r.slug, nombre: r.nombre, descripcion: r.descripcion, esSistema: true },
-          },
-          { upsert: true },
-        );
-      } catch (e: any) {
-        this.logger.warn(`Sync del rol "${r.slug}" falló: ${e?.message}`);
-      }
+    try {
+      const db = this.rolModel.db;
+      const { actuales, creadosAntes } = await leerEstado(db);
+      await aplicarSync(db, planificarSync(actuales, creadosAntes), (m) => this.logger.log(`[roles] ${m}`));
+    } catch (e: any) {
+      this.logger.warn(`Sync de roles predefinidos falló: ${e?.message}`);
     }
   }
 
